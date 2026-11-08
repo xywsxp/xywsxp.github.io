@@ -1,0 +1,8 @@
+{"id":"JIRL-P14","expected":"Positive OR family has exactly 2^n minimal supports","observed":{"testedN":"1..7","lastLabels":128},"result":"PASS"}
+{"id":"JIRL-P15","expected":"Claimwise labels are insufficient for joint consistency","observed":{"xLabel":["a"],"yLabel":["b"],"unionConsistent":false},"result":"PASS"}
+{"id":"JIRL-P16","expected":"Least fixed point is unique, fixed points need not be","observed":{"least":[],"largerFixedPoint":["p","q"]},"result":"PASS"}
+{"id":"JIRL-P17","expected":"Per-lineage or per-edge newest mixtures break coherent invariants","observed":{"branches":[{"x":1,"y":1},{"x":2,"y":2}],"skew":{"x":1,"y":2},"unionHasCycle":true},"result":"PASS"}
+{"id":"JIRL-P18","expected":"Provider conformance alone does not imply exact cold-verdict equality","observed":{"sameContract":"result>=0","old":"passed","next":"refuted"},"result":"PASS"}
+{"id":"JIRL-P19","expected":"IA compatibility does not reject safe termination via empty input quantification","observed":{"safeTerminalCompatible":true,"losing":["bad","emit","inside"]},"result":"PASS"}
+{"id":"JIRL-P20","expected":"Empty matches do not erase collection dependencies","observed":{"before":"passed","after":"refuted"},"result":"PASS"}
+{"id":"JIRL-P21","expected":"Finite complete-projection cache agrees with cold verdicts","observed":{"cases":16,"scope":"two pure finite check functions, not a general evaluator implementation"},"result":"PASS"}

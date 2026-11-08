@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>xywsxp · Formal Specifications &amp; Systems Research</title>
+  <meta name="description" content="Technical specifications, formal verification architectures, and collaborative research papers.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #f7f6f2;
+      --paper: #ffffff;
+      --text: #16181d;
+      --muted: #525866;
+      --border: #e2e0d8;
+      --accent: #1d4ed8;
+      --accent-soft: #eff6ff;
+      --chip-bg: #f1f0ec;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141518;
+        --paper: #1c1e22;
+        --text: #eceef2;
+        --muted: #9ca3af;
+        --border: #2e323b;
+        --accent: #60a5fa;
+        --accent-soft: rgba(59, 130, 246, 0.14);
+        --chip-bg: #262930;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Serif SC", sans-serif;
+      line-height: 1.65;
+    }
+    .container {
+      max-width: 54rem;
+      margin: 0 auto;
+      padding: 3.5rem 1.5rem 5rem;
+    }
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.55rem;
+      letter-spacing: -0.02em;
+    }
+    header p {
+      margin: 0.35rem 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .card {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 2rem;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+    }
+    .eyebrow {
+      display: inline-block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      background: var(--accent-soft);
+      padding: 0.22rem 0.65rem;
+      border-radius: 999px;
+      margin-bottom: 0.85rem;
+    }
+    .card h2 {
+      margin: 0 0 0.5rem;
+      font-size: 1.5rem;
+      line-height: 1.3;
+    }
+    .card h2 a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .card h2 a:hover {
+      color: var(--accent);
+    }
+    .subtitle {
+      margin: 0 0 1.15rem;
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 1.04rem;
+    }
+    .abstract {
+      margin: 0 0 1.4rem;
+      color: var(--text);
+      font-size: 0.96rem;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      margin-top: 1.25rem;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.52rem 1rem;
+      border-radius: 0.55rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      background: var(--chip-bg);
+      color: var(--text);
+    }
+    .btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .btn:hover {
+      opacity: 0.92;
+    }
+    .toc-preview {
+      margin-top: 1.5rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+      gap: 0.5rem 1.25rem;
+      font-size: 0.88rem;
+    }
+    .toc-preview a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+    .toc-preview a:hover {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>xywsxp · Research &amp; Formal Specifications</h1>
+        <p>Working papers, executable formal models, and collaborative design specifications.</p>
+      </div>
+      <a class="btn" href="https://github.com/xywsxp/xywsxp.github.io" target="_blank" rel="noopener">🐙 GitHub Repository</a>
+    </header>
+
+    <article class="card">
+      <span class="eyebrow">Working Paper · JIRL-PAPER-v1 · Open for Collaborative Review</span>
+      <h2><a href="/jirl-formal-paper/">The Justified Intent &amp; Refinement Ledger (JIRL)</a></h2>
+      <p class="subtitle">Stratified Justification, Compositional Assurance, and Coherent Software Evolution</p>
+      <p class="abstract">
+        A formal architecture separating software evolution into three content-addressed strata (<strong>Material</strong>, <strong>Evaluation</strong>, and <strong>Authority</strong>), combining monotone grouped positive support closure with global nogood consistency, interface-automaton &amp; circular assume-guarantee compositional verification boundaries, and sound incremental early cutoff backed by 37 executed finite witnesses (<code>P1–P21</code>, <code>V16–V31</code>).
+      </p>
+      <div class="actions">
+        <a class="btn primary" href="/jirl-formal-paper/">📖 Read &amp; Annotate Paper</a>
+        <a class="btn" href="/jirl-formal-paper/#12-theoretical-placement">🎯 §1.2 Theoretical Placement</a>
+        <a class="btn" href="/jirl-formal-paper.pdf" target="_blank" rel="noopener">⬇ Download PDF</a>
+        <a class="btn" href="https://github.com/xywsxp/xywsxp.github.io/tree/main/jirl" target="_blank" rel="noopener">💻 Model &amp; 37 Witnesses</a>
+        <a class="btn" href="https://github.com/xywsxp/xywsxp.github.io/issues" target="_blank" rel="noopener">💬 Shared Annotations &amp; Issues</a>
+      </div>
+      <div class="toc-preview">
+        <a href="/jirl-formal-paper/#1-introduction-and-problem-formulation">§1. Introduction &amp; Problem Formulation</a>
+        <a href="/jirl-formal-paper/#12-theoretical-placement">§1.2 Theoretical Placement</a>
+        <a href="/jirl-formal-paper/#2-abstract-model-and-stratified-persistence">§2. Abstract Model &amp; Stratified Persistence</a>
+        <a href="/jirl-formal-paper/#3-support-algebra-and-consistency-semantics">§3. Support Algebra &amp; Consistency Semantics</a>
+        <a href="/jirl-formal-paper/#4-compositional-verification-boundaries-and-executable-realization">§4. Compositional Verification Boundaries</a>
+        <a href="/jirl-formal-paper/#5-incremental-evolution-and-transactional-publication">§5. Incremental Evolution &amp; Publication</a>
+        <a href="/jirl-formal-paper/#6-feasibility-complexity-and-falsification">§6. Feasibility, Complexity &amp; Falsification</a>
+        <a href="/jirl-formal-paper/#references">References</a>
+      </div>
+    </article>
+  </div>
+</body>
+</html>
