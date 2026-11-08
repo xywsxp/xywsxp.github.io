@@ -17,10 +17,10 @@ Public site: **<https://xywsxp.github.io/>**
 
 1. **Inline Passage Annotation (Web)**:
    - Open <https://xywsxp.github.io/jirl-formal-paper/> and select any sentence, definition, theorem, or formula.
-   - Click the **「💬 批注选中文字」** pill to open the annotation card.
+   - Click the **"💬 Annotate selection"** pill to open the annotation card.
    - You can either:
      - **Publish as a Shared GitHub Annotation** (opens a pre-filled GitHub Issue with label `jirl-annotation`; once submitted, it automatically renders inline on the webpage for all readers), or
-     - **Save Locally & Copy Markdown** (click **「📋 复制批注 (Markdown)」** to paste your anchored critiques directly into WeChat / Slack).
+     - **Save Locally & Copy Markdown** (click **"📋 Copy Markdown"** to paste your anchored critiques directly into WeChat / Slack).
 2. **Replaying the 37 Executable Witnesses**:
    ```sh
    node jirl/jirl-paper-probes.mjs
