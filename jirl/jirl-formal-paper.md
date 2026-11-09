@@ -1,748 +1,1212 @@
-# The Justified Intent & Refinement Ledger
-## Stratified Justification, Compositional Assurance, and Coherent Software Evolution
+# Stratified Software Development
 
-**Formal Technical Report · JIRL-TR-2026-01 · 8 November 2026**
+## A Layer Calculus for Agent-Authored Systems
 
-### Abstract
+**Formal Technical Report · November 2026**
 
-Software evolution changes premises, requirements, design choices, and the evidence used to justify them alongside program text. A dependency graph alone cannot determine whether an alternative justification survives, whether an earlier check establishes a strengthened obligation, or whether individually acceptable branch changes remain acceptable together. We introduce the Justified Intent & Refinement Ledger (JIRL), a finite mathematical model and persistent reference architecture separating material definitions, evaluation and authority, and published snapshots. Grouped positive justifications express conjunction within a reason and disjunction across reasons; inconsistency is evaluated on full derived configurations rather than incorporated into local inference guards. We prove least-fixed-point and order-independence results, characterize consistent assumption environments and their minimal labels, and establish exponential explicit-label lower bounds. Finite counterexamples refute topology-only verification boundaries, artifact-hash reuse, unverified interface-hash cutoff, and per-edge newest-version traversal. An obligation-first calculus connects joint exploration, interface compatibility, non-vacuous circular assume-guarantee reasoning, vertical simulation, and code realization. Incremental evaluation is proved equivalent to cold evaluation when complete observational projections and reuse certificates preserve the defined verdict projection. A four-phase publication protocol installs an evaluated and authorized candidate under an atomic expected-head update. Complexity analysis separates the inexpensive finite kernel from potentially dominant proof and authoring costs, while finite witness checks and a four-arm falsification protocol separate mathematical soundness from empirical evaluation of engineering utility.
+---
 
-## 1. Introduction and problem formulation
+## Abstract
 
-Consider a service designed under the assumption that no tenant-specific rule exists. Two premises jointly justify a shared cache; a different mechanism could justify the same cache independently. A new tenant rule defeats the absence assumption. At the same time, a performance requirement is strengthened and two branches adjust different parts of a capacity budget. Tracking only modified source files leaves four engineering questions unanswered: which justification still applies, which check is now inadequate, which behavioral interaction needs joint verification, and which coherent candidate may replace the accepted design?
+Autonomous coding agents fail in three recurring ways. They leap from a requirement to code and invent the missing design; they lose the rationale for load-bearing choices and later weaken tests to make builds pass; and they leave humans with no trustworthy intermediate view of what the system does. This report presents a layer calculus that makes software development a sequence of verified behavior inclusions. A layer records intents, their support, design decisions, state machines, a decomposition into child contracts, and evidence. One relation — behavior inclusion under an abstraction map — serves for intent satisfaction, contract refinement, connector decomposition, and code realization. Stratification turns support evaluation into a forward recurrence, sibling verification into a substitution lemma, and version evolution into proof reuse at unchanged interfaces. The central theorem states that a valid stratified development refines the admitted root intents, conditional on explicit executable-realization and profile-admissibility premises. The report develops the layer definition, the soundness proof, the cutoff theorem, a five-gate agent protocol, a four-step evolution loop, and a complete durable-acknowledgement example, and it specifies a small mechanization target.
 
-JIRL addresses these as four distinct boundaries:
+---
 
-1. **Justification under change.** A conclusion may require several premises jointly and may admit several alternative derivations. Retracting one premise removes one derivation route while leaving independent routes intact. Absence assumptions vary nonmonotonically across inventory changes, whereas positive inference within a fixed candidate remains monotone.
-2. **Intent versus behavioral verification.** Shared rationale and shared runtime state are orthogonal relations: components linked by a common goal can execute independently, and components without direct rationale links can contend for shared resources. Requirements, contracts, state machines, and programs require explicit satisfaction and realization relations beyond graph connectivity.
-3. **Persistence and coherent observation.** Following the newest revision of each dependency independently can synthesize a configuration that was never evaluated together, while embedding current evidence inside its own evaluated content creates a cyclic hash dependency. Historical object identity, current evaluation evidence, and named accepted snapshots are therefore stratified.
-4. **Evolution versus synthesis.** An intent change $\Delta I$ rarely determines a unique implementation. The transition
+## 1. Introduction
 
-   $$
-   G_{t+1} = \operatorname{evolve}(G_t, \Delta I, \pi, \alpha; \omega)
-   $$
+### 1.1 The problem
 
-   is defined relative to an explicit interpretation and selection policy $\pi$, authority policy $\alpha$, and external checker/environment observations $\omega$, yielding either a published snapshot or an explicit phase diagnostic (§5.2).
+An agent is asked to add a feature or change a subsystem. It receives a requirement sentence and produces code. Between the sentence and the code lie decisions the sentence does not contain: data layout, ownership, error semantics, protocol ordering, retry policy, concurrency control, and edge-case handling. When the agent fills that gap in one leap, three failures follow.
 
-### 1.1 Scope, assumptions, and contribution
+**Wide abstraction leap.** The agent invents the missing design while writing the implementation. Implicit choices become hidden assumptions: a synchronous clock, a lossless channel, an atomic write that is not atomic, a lock that is not held across the operation that needs it. The resulting system can pass unit tests and still violate the requirement under interleaving, failure, or scale.
 
-This report specifies a mathematical model and reference architecture. The finite kernel assumes immutable content-addressed inputs, declared dependency and model horizons, trusted assurance and authority providers, collision-free content identifiers over the objects used, and a publication store supporting atomic expected-head updates with durable transition records. Proofs, finite tests, and governance judgments carry distinct assurance modes: each establishes the proposition, exercised scope, or authorization recorded in its own obligation. External deployments and data migrations are governed as separate actions outside snapshot publication.
+**Rationale erasure and silent test weakening.** A source repository records the final code, not the ordered argument for why a structure or protocol was chosen from upstream constraints, nor why the alternatives were rejected. A later agent cannot distinguish a load-bearing invariant from an incidental detail. Faced with a failing test, the cheapest repair is often to delete the assertion or weaken the condition. The build passes; the invariant is gone.
 
-The core contribution is the composition of four boundaries—positive support, scoped assurance, action-specific authority, and coherent persistence—connected through explicit obligations. Transformation certificates from design-maintenance systems [13], where a change is commuted through a verified derivation with an applicability argument, fit naturally as one class of obligation evidence.
+**Human inscrutability.** There is no trustworthy intermediate view. To know what the system does, a human must read thousands of lines of agent-generated code, reconstruct the design from the implementation, and guess which parts are intentional. Review degrades into rubber-stamping or line-by-line debugging.
 
-### 1.2 Theoretical placement
+### 1.2 Why post-hoc auditing does not address the problem
 
-Truth-maintenance systems motivate explicit assumption environments and nogoods, while positive provenance distinguishes joint premises from alternative derivations [1,2]. JIRL uses finite Boolean support: the meaning of a derivation step is carried by a versioned rule specification and its bound verification obligations.
+An audit that runs after the code exists can detect some violations, but it does not prevent the leap that produced them. A diff algorithm can show what changed, but it cannot show which invariant the change was supposed to preserve. A test suite can encode a requirement, but a test is evidence about a sample, not a proof of a universal behavioral obligation, and it is exactly the artifact an agent can weaken. The problem is structural: the development process has no mandatory intermediate objects that are both behavioral and checkable.
 
-Goal-oriented requirements engineering separates desired properties from system specifications and domain assumptions [3]. Axiomatic Design's zigzagging between functional requirements and design parameters motivates **mechanism-conditioned** subgoals [4]: selecting a replicated storage mechanism introduces consistency and recovery obligations beyond the abstract availability goal. Design Structure Matrix (DSM) analysis exposes structural coupling to guide partitioning, while semantic compatibility is discharged by behavioral composition obligations [5].
+### 1.3 The stratified thesis
 
-IBIS and QOC preserve design questions, options, qualitative assessments, and selection rationale [6]. Interface automata and assume-guarantee calculi supply compositional behavioral rules [7,8], and refinement mappings connect abstract and concrete transition systems [9]. Persistent data structures and self-adjusting computation provide versioned structural sharing and from-scratch incremental consistency criteria [10,11]. JIRL connects these traditions at explicit obligations so that rationale maintenance, compositional verification, and snapshot publication share a single dependency and applicability model; Section 6 specifies an empirical protocol to test when that integration yields net engineering benefit.
-
-## 2. Abstract model and stratified persistence
-
-### 2.1 Material, evaluation, authority, and snapshots
-
-A finite material is an eight-tuple
+Development proceeds through a persistent sequence of behavioral layers
 
 $$
-\mathcal{M} = (C, R, J, N, O, \mathcal{D}, R_C, R_O),
+\mathcal{L}_0 \longrightarrow \mathcal{L}_1 \longrightarrow \cdots \longrightarrow \mathcal{L}_L \longrightarrow \text{executable code}.
 $$
 
-where $C$ is the selected set of exact claim revisions, $R\subseteq C$ the admitted roots, $J$ the grouped justifications, $N$ the applicable nogoods, $O$ the obligations, $\mathcal D$ the decision records, and $R_C\subseteq C$, $R_O\subseteq O$ the required achievements and checks. All references resolve to active members of $\mathcal M$, with at most one active revision per claim or obligation lineage. Lineages provide stable navigation across history, while snapshots select exact immutable revisions.
+At each layer $k$, the developer records:
 
-A claim states a commitment, assumption, absence condition, proposition, artifact description, or selection. Each justification $j \in J$ and nogood $n \in N$ has the form
+- the intents active at layer $k$ and the support that activates them;
+- the design decisions taken at layer $k$, with their alternatives and reopening conditions;
+- explicit state machines for the components at layer $k$;
+- a decomposition of each component into child contracts for layer $k+1$;
+- evidence that the layer's machines satisfy its intents and that its decomposition is sound.
 
-$$
-j = (P_j, h_j, \rho_j) \quad \text{with } P_j \subseteq C,\; h_j \in C, \qquad K_n \subseteq C,
-$$
+A candidate advances only when the required checks at that layer succeed. Layer $L$ is the executable layer: each leaf machine is realized by a program under a declared execution semantics. Stringent layer validity includes the operational realization of the wiring and the selected profile's initialization, input, and progress conditions; the soundness theorem is conditional on them. The result is a chain of behavior inclusions, one layer at a time, where every link is small enough to verify and every link is retained as evidence.
 
-where $P_j$ is a finite conjunctive premise set, $h_j$ is the consequent, and $\rho_j$ is an immutable rule specification that defines any role-sensitive premise ordering. Multiple justifications with the same consequent $h_j$ represent alternative derivations. A nogood $n$ declares a subset $K_n\subseteq C$ that cannot co-hold in a consistent configuration; $K_n = \emptyset$ denotes unconditional inconsistency.
+The prevention claim is precise. An implementation that violates a protected, formally expressed obligation cannot be accepted by a sound gate whose complete dependencies are preserved. The gate does not make the agent intelligent; it makes the agent's obligations explicit, local, ordered, and checkable.
 
-An obligation pins a subject, requested property and evidence scope, evaluator identity, and configuration. A check request binds an obligation to an exact $\mathcal M$ and a consumed-environment manifest. An evaluation $\mathcal E$ selects applicable check outcomes under an assurance profile. An authority decision $\mathcal A$ answers an exact publication request over base snapshots, $\mathcal M$, $\mathcal E$, principal, policy, intent, interpretation, and protected-item dispositions. A snapshot $\mathcal S$ binds exact references to its parent snapshots, $\mathcal M$, $\mathcal E$, and $\mathcal A$.
+### 1.4 Contributions
 
-```text
-Material stratum          Assessment / authority stratum          Snapshot stratum
-payloads, claims          CheckRequests -> Evidence               old parents
-edges, constraints  --->  Evaluation -> AuthorityRequest   --->    + Material
-decisions, obligations    -> AuthorityDecision                     + Evaluation
--> Material                                                       + AuthorityDecision
-                                                                     |
-                                                   named ref --atomic expected-head update
-```
+1. A layer calculus in which intent satisfaction, contract refinement, connector decomposition, and code realization are one relation: behavior inclusion.
+2. A stratified support recurrence with a separate evidence stratum and a protected-obligation preservation rule, so neither a failed check nor a support edit silently erases the obligation.
+3. A stratified soundness theorem whose chain is executable realization, connector monotonicity, child refinement, and inclusion transitivity.
+4. A sibling-independence theorem with explicit composition conditions, including interaction ownership and executable closure.
+5. A key-locality cutoff theorem: a change that preserves an interface reuses every ancestor proof by substitution.
+6. A five-gate development protocol and a four-step evolution loop, including a repair taxonomy that separates semantic counterexamples, failed proof witnesses, and unresolved checker results.
+7. A complete durable-acknowledgement example, worked through three layers, with a single-use interface precondition, a visible durability observation, leaf pseudocode, an agent error, its counterexample, and two repair paths.
+8. A mechanization target small enough to audit in one sitting.
 
-Arrows in the diagram show construction prerequisites; stored pointers in the assessment and snapshot strata target previously constructed objects in earlier strata. Within the middle stratum, evaluation precedes publication authorization: earlier judgment evidence may enter as a pinned evaluation input, whereas the publication authority decision $\mathcal A$ refers to the completed evaluation $\mathcal E$.
+### 1.5 Roadmap
 
-### 2.2 Bottom-up content identity and constant-operation root resolution
+Section 2 fixes the refinement algebra. Section 3 defines layers, support, decisions, validity, and proves stratified soundness. Section 4 details the four verification obligations and the evidence discipline. Section 5 treats decomposition, connectors, and sibling independence. Section 6 gives the development protocol. Section 7 gives versions, keys, cutoff, and evolution. Section 8 works the durable-acknowledgement example. Section 9 specifies the mechanization target. Sections 10–11 cover related work and open problems. The appendices record the finite probes that motivate the counterexamples and give proof details.
 
-Objects use a canonical byte encoding and domain-separated cryptographic hash, with content identifiers derived from the hashed payload. Keys are canonically sorted; arrays representing mathematical sets are sorted and duplicate-free; sequences retain semantic order; and blobs preserve exact bytes. Boundary validation checks schema conformance, content identity, reference closure, and active membership on load.
+---
 
-**Lemma 1 (Acyclic construction).** If every typed object reference points to an earlier object in a well-founded construction order, content identifiers can be computed bottom-up without self-referential hash equations.
+## 2. The Refinement Algebra
 
-**Proof.** A leaf object's encoding contains no unresolved references, so its hash determines its identifier directly. By induction, when all earlier objects in the construction order have assigned identifiers, substituting those identifiers into the next object's reference fields yields a complete finite byte encoding and hence a well-defined hash. Claims are constructed prior to separately stored justification records, so cycles in logical support do not induce cycles in typed object references; snapshots reference only existing parent snapshots. Any topological order of the finite typed reference graph supplies the required construction rank. $\square$
+### 2.1 Observations, machines, and specifications
 
-**Lemma 2 (Pinned snapshot resolution).** Under a store cost model counting indexed lookups, resolving a named ref to its root snapshot envelope requires $O(1)$ store operations (one atomic ref read and one envelope fetch, with byte transfer proportional to envelope size), and subsequent traversals along exact immutable references remain isolated from concurrent ref updates; enumerating a referenced closure of $k$ objects takes $O(k)$ store operations.
+Fix an interface $X$. An **observation space** $\mathcal{O}_X$ is a set of observations of $X$. The core instance is the set of finite traces over the visible actions of $X$; the liveness instance adds maximal traces under a declared fairness condition; the timed and probabilistic instances replace traces with timed or measure-valued observations. A **specification** at $X$ is a subset $\Phi \subseteq \mathcal{O}_X$.
 
-**Proof.** The atomic ref read returns a single snapshot identifier $s$, and fetching $s$ retrieves its immutable root envelope. Because every internal reference targets an exact content identifier and retained objects are immutable, traversal from $s$ accesses the same object bytes regardless of concurrent updates to the mutable named ref. $\square$
-
-### 2.3 Decisions and the epistemic/governance boundary
-
-For a design question $q$, a decision record pairs each candidate option $\operatorname{opt}(q,o_i)$ with a distinct selection proposition $\operatorname{sel}(q,o_i)$ stating that option $o_i$ is chosen. Option feasibility is established by separate evidence claims bound to $\operatorname{opt}(q,o_i)$, allowing multiple feasible options (including rejected alternatives) to remain recorded simultaneously. Qualitative assessment marks (`++`, `+`, `0`, `-`, `--`) record structured trade-offs unless a quantitative utility obligation is separately specified.
-
-A configuration $W$ satisfies the at-most-one selection invariant when
+A **machine** at $X$ is a structure
 
 $$
-\bigl|\{i : \operatorname{sel}(q, o_i) \in W\}\bigr| \le 1.
+M = (S, S_0, \Sigma, \to, \mathrm{obs}_M)
 $$
 
-When a decision record designates a selected option, its corresponding $\operatorname{sel}(q,o_i)$ must belong to $W$; when the active assurance profile requires the question to be resolved, exactly one selection proposition must hold:
+where $S$ is a state set, $S_0 \subseteq S$ the initial states, $\Sigma$ a partitioned alphabet of inputs, outputs, and internal actions, $\to \subseteq S \times \Sigma \times S$ the transition relation, and $\mathrm{obs}_M$ maps executions to observations. Its **behavior** is
 
 $$
-\bigl|\{i : \operatorname{sel}(q, o_i) \in W\}\bigr| = 1.
+\operatorname{beh}(M) = \{\, \mathrm{obs}_M(\rho) \mid \rho \text{ is an execution of } M \,\} \subseteq \mathcal{O}_X .
 $$
 
-Unresolved questions ($0$ selected options) are valid in exploratory snapshots. While the at-most-one constraint can be expressed via pairwise nogoods $\{\operatorname{sel}(q, o_i), \operatorname{sel}(q, o_k)\}$ ($i \ne k$), the at-least-one resolution requirement is a positive obligation: because the family of nogood-consistent sets is downward-closed (Theorem 2(i)), no set of nogoods over positive claims can exclude the empty selection while admitting a singleton selection.
+For the trace kernel, $\operatorname{beh}(M)$ is a trace set and is written $\operatorname{tr}(M)$.
 
-Factual assessments establish empirical or analytical properties of an option, whereas option selection records a policy judgment and snapshot publication records action-specific governance authority. Authority is modeled as a coverage relation between principals and request scopes rather than a total scalar rank: two principals authorized for disjoint scopes $A$ and $B$ are incomparable, and replacing or retiring a protected item requires authority covering that specific disposition. Each rejected option records a human-readable `reopenWhen` condition for review; automated reopening, when desired, is attached as a separate query obligation with a formal predicate.
+### 2.2 Satisfaction, refinement, and abstraction
 
-### 2.4 Stratified scoped absence queries
-
-Let $I_\sigma(\mathcal M)$ denote the finite static material inventory under a declared inclusion scope $\sigma$, and let $q$ be a pinned predicate over claim metadata or payloads. Its match set is
+**Satisfaction** and **refinement** are inclusion:
 
 $$
-Q_{q,\sigma}(\mathcal{M}) = \{c \in I_\sigma(\mathcal{M}) : q(c)\}.
+M \models \Phi \iff \operatorname{beh}(M) \subseteq \Phi,
+\qquad
+M \preceq A \iff \operatorname{beh}(M) \subseteq \operatorname{beh}(A).
 $$
 
-A query report records the evaluated material, predicate, traversed scope, match set, and completion status. Discharging an absence claim requires a `complete` scan over $\sigma$ with $Q_{q,\sigma}(\mathcal{M}) = \emptyset$; a stopped scan yields an `incomplete` outcome, while any single matching element $c \in Q_{q,\sigma}(\mathcal{M})$ suffices to refute absence immediately. Because an empty match set depends on the collection membership of $I_\sigma(\mathcal M)$, subsequent insertion into $\sigma$ requires re-evaluation unless a narrower observational projection certifies non-interference.
-
-Evaluation is stratified in the order: static inventory $I_\sigma(\mathcal M) \to$ query and check outcomes $\to$ frozen rule eligibility $\to$ warranted positive closure $W(\mathcal M, \mathcal E)$. Queries inspect only the static material stratum and never read their own current warrant or the closure $W$ being computed. Without stratification, allowing an absence claim $a$ to hold iff no warranted claim satisfies $P$, while a claim $c$ satisfying $P$ is warranted iff $a$ holds, yields
+With an abstraction map $\alpha : \mathcal{O}_{X'} \to \mathcal{O}_X$,
 
 $$
-w(a) \Longleftrightarrow \neg w(a),
+M \preceq_\alpha A \iff \alpha(\operatorname{beh}(M)) \subseteq \operatorname{beh}(A),
+\qquad
+\alpha^*\Phi = \{\, o' \in \mathcal{O}_{X'} \mid \alpha(o') \in \Phi \,\}.
 $$
 
-which admits no two-valued fixed point. Restricting queries to the static inventory eliminates this cycle while preserving fixed-candidate monotonicity: within a fixed $(\mathcal M, \mathcal E)$, the positive closure operator is monotone (Theorem 1), whereas across distinct materials $\mathcal M \to \mathcal M'$, inserting a matching claim invalidates the prior empty-query evidence and retracts downstream warrant.
-
-### 2.5 Reference data model
-
-The TypeScript definitions below specify the core reference records quantified over in §§3–5. Content-addressed references `Ref<K>` carry a compile-time phantom brand `K` to prevent cross-kind substitution, while runtime boundary validation enforces schema conformance and reference closure. Process-level execution diagnostics (exit codes, signals, wall-clock timeouts) belong to checker adapter metadata outside the core semantic report.
-
-```ts
-declare const refBrand: unique symbol;
-export type RefKind =
-  | "blob" | "claim" | "justification" | "nogood" | "obligation"
-  | "decision" | "material" | "check-request" | "check-report" | "evidence"
-  | "evaluation" | "authority-request" | "authority-decision" | "snapshot";
-export type Ref<K extends RefKind> = string & {readonly [refBrand]: K};
-export type Lineage = string;
-export type Scope = string;
-
-export interface Claim {
-  readonly schema: "intent-ledger/claim/2";
-  readonly lineage: Lineage;
-  readonly kind: "commitment" | "assumption" | "absence" | "proposition" | "artifact" | "selection";
-  readonly scope: Scope;
-  readonly statement: string;
-  readonly payload?: {readonly format: string; readonly content: Ref<"blob">};
-  readonly tags: Readonly<Record<string, string>>;
-}
-
-export interface Justification {
-  readonly schema: "intent-ledger/justification/2";
-  readonly premises: readonly Ref<"claim">[];
-  readonly consequent: Ref<"claim">;
-  readonly rule: Ref<"blob">; // Versioned inference or refinement rule specification.
-}
-
-export interface Nogood {
-  readonly schema: "intent-ledger/nogood/2";
-  readonly members: readonly Ref<"claim">[]; // Jointly incompatible claim set within one configuration.
-  readonly reason: string;
-}
-
-export type CheckSubject =
-  | {readonly kind: "claim"; readonly claim: Ref<"claim">}
-  | {readonly kind: "justification"; readonly justification: Ref<"justification">}
-  | {readonly kind: "candidate"};
-
-export interface Obligation {
-  readonly schema: "intent-ledger/obligation/2";
-  readonly lineage: Lineage;
-  readonly scope: Scope;
-  readonly subject: CheckSubject;
-  readonly mode: "judgment" | "proof" | "test" | "query";
-  readonly specification: Ref<"blob">; // Requested property, assumptions, and evidence scope.
-  readonly checker: Ref<"blob">;       // Pinned evaluator/adapter identity and protocol.
-  readonly configuration: Ref<"blob">; // Pinned parameters, bounds, and solver settings.
-}
-
-export interface DecisionRecord {
-  readonly schema: "intent-ledger/decision/2";
-  readonly question: Ref<"claim">;
-  readonly options: readonly {
-    readonly option: Ref<"claim">;
-    readonly selection: Ref<"claim">; // Proposition stating that this option is selected.
-  }[];
-  readonly assessments: readonly {
-    readonly criterion: Ref<"claim">;
-    readonly option: Ref<"claim">;
-    readonly assessment: Ref<"claim">;
-    readonly mark?: "++" | "+" | "0" | "-" | "--";
-  }[];
-  readonly selectedOption: Ref<"claim"> | null; // Selected option, or null when the question remains open.
-  readonly rejected: readonly {
-    readonly option: Ref<"claim">;
-    readonly reason: string;
-    readonly reopenWhen: string; // Human-readable review condition for reconsidering the option.
-  }[];
-}
-
-export interface Material {
-  readonly schema: "intent-ledger/material/2";
-  readonly claims: readonly Ref<"claim">[];
-  readonly roots: readonly Ref<"claim">[];
-  readonly justifications: readonly Ref<"justification">[];
-  readonly nogoods: readonly Ref<"nogood">[];
-  readonly decisions: readonly Ref<"decision">[];
-  readonly obligations: readonly Ref<"obligation">[];
-  readonly requiredObligations: readonly Ref<"obligation">[];
-  readonly requiredClaims: readonly Ref<"claim">[];
-}
-
-export interface CheckRequest {
-  readonly schema: "intent-ledger/check-request/2";
-  readonly material: Ref<"material">;
-  readonly obligation: Ref<"obligation">;
-  readonly environment: Ref<"blob">; // Complete manifest of consumed external inputs.
-}
-
-export interface QuerySpecification {
-  readonly schema: "intent-ledger/query-specification/1";
-  readonly view: "claim-inventory";
-  readonly scope: Scope;
-  readonly predicate: Ref<"blob">;
-  readonly expectation:
-    | {readonly kind: "empty"}
-    | {readonly kind: "exact"; readonly matches: readonly Ref<"claim">[]}
-    | {readonly kind: "predicate"; readonly predicate: Ref<"blob">};
-}
-
-export type CheckResult =
-  | {readonly kind: "passed"} // Discharges the pinned request's property within its declared scope.
-  | {readonly kind: "refuted"; readonly counterexample: Ref<"blob">}
-  | {readonly kind: "incomplete"; readonly reason: string; readonly partial: Ref<"blob"> | null}
-  | {readonly kind: "unsupported"; readonly reason: string}
-  | {readonly kind: "error"; readonly diagnostic: Ref<"blob">}
-  | {readonly kind: "not_run"; readonly reason: string};
-
-export type CheckReport = {
-  readonly schema: "intent-ledger/check-report/1";
-  readonly request: Ref<"check-request">;
-  readonly result: CheckResult;
-  readonly exercised: readonly CheckSubject[];
-  readonly omitted: readonly CheckSubject[];
-  readonly completeness: "complete" | "incomplete";
-  readonly details: Ref<"blob">; // Adapter-specific proof certificate, trace, or execution log.
-} & (
-  | {readonly kind: "check"}
-  | {readonly kind: "query"; readonly matches: readonly Ref<"claim">[]}
-);
-
-export interface EvidenceRecord {
-  readonly schema: "intent-ledger/evidence/2";
-  readonly report: Ref<"check-report">;
-  readonly basis: readonly Ref<"evidence">[]; // Prior evidence records cited by a reuse certificate.
-}
-
-export interface Evaluation {
-  readonly schema: "intent-ledger/evaluation/2";
-  readonly material: Ref<"material">;
-  readonly profile: Ref<"blob">; // Pinned assurance and checker-eligibility policy.
-  readonly environment: Ref<"blob">;
-  readonly evidence: readonly Ref<"evidence">[];
-}
-
-export type AcceptedItem =
-  | {readonly collection: "claims" | "roots" | "requiredClaims"; readonly ref: Ref<"claim">}
-  | {readonly collection: "obligations" | "requiredObligations"; readonly ref: Ref<"obligation">}
-  | {readonly collection: "justifications"; readonly ref: Ref<"justification">}
-  | {readonly collection: "decisions"; readonly ref: Ref<"decision">}
-  | {readonly collection: "nogoods"; readonly ref: Ref<"nogood">};
-
-export interface AcceptedDisposition {
-  readonly before: AcceptedItem;
-  readonly after: AcceptedItem | null; // Replacement item, or null when withdrawing the protected role.
-  readonly reason: string;
-}
-
-export interface AuthorityRequest {
-  readonly schema: "intent-ledger/authority-request/2";
-  readonly bases: readonly Ref<"snapshot">[];
-  readonly material: Ref<"material">;
-  readonly evaluation: Ref<"evaluation">;
-  readonly policy: Ref<"blob">;
-  readonly principal: string;
-  readonly intent: Ref<"blob">;
-  readonly interpretation: Ref<"blob">;
-  readonly dispositions: readonly AcceptedDisposition[];
-  readonly action: "publish_snapshot";
-}
-
-export interface AuthorityDecision {
-  readonly schema: "intent-ledger/authority-decision/2";
-  readonly request: Ref<"authority-request">;
-  readonly provider: Ref<"blob">;
-  readonly recordedAt: string; // Provider-recorded UTC timestamp.
-  readonly result: "authorized" | "denied" | "indeterminate";
-  readonly receipt: Ref<"blob">;
-}
-
-export interface Snapshot {
-  readonly schema: "intent-ledger/snapshot/2";
-  readonly parents: readonly Ref<"snapshot">[];
-  readonly material: Ref<"material">;
-  readonly evaluation: Ref<"evaluation">;
-  readonly authorization: Ref<"authority-decision">;
-}
-```
-
-Reference arrays represent canonical sets except for `parents` and `bases`, which are ordered duplicate-free sequences whose first element identifies the expected publication head. Within a `Material`, claims and obligations have unique active lineages; every root, justification endpoint, nogood member, required claim, and non-candidate obligation subject belongs to the active material, and `requiredObligations` is a subset of `obligations`. Each question has at most one active `DecisionRecord`, with disjoint selected and rejected option sets. An `Evaluation` selects at most one outcome per exact request; conflicting outcomes for the same deterministic request require explicit reconciliation, and prior `basis` evidence applies to a new material only when accompanied by a current reuse report.
-
-## 3. Support algebra and consistency semantics
-
-### 3.1 Positive closure and global consistency
-
-Define the one-step positive consequence operator
+Inclusion is reflexive and transitive. The inverse-image operation is functorial by function composition:
 
 $$
-\operatorname{Pos}(U) = \{h_j \mid j \in J \text{ and } P_j \subseteq U\}.
+(\alpha_2 \circ \alpha_1)^* = \alpha_1^* \circ \alpha_2^*,
+\qquad
+\mathrm{id}^* = \mathrm{id}.
 $$
 
-Consider first the locally guarded operator that filters each rule application against nogoods $N$:
+### 2.3 Connectors
+
+A **connector** at a parent cell $v$ is a map on behavior sets,
 
 $$
-T_R(U) = R \cup U \cup \bigl\{h_j \;\big|\; j \in J,\; P_j \subseteq U \text{ and no } K_n \subseteq U \cup \{h_j\}\bigr\}.
+K_v : \prod_{c \in \operatorname{ch}(v)} \mathcal{P}(\mathcal{O}_{X_c}) \longrightarrow \mathcal{P}(\mathcal{O}_{X_v}),
 $$
 
-**Proposition 1.** There exist finite materials for which $T_R$ is nonmonotone, parallel step evaluation activates a nogood, and no least fixed point above $R$ exists.
-
-**Proof.** Let
+and it is **admissible** when it is monotone:
 
 $$
-\begin{aligned}
-C &= \{a, b, c\}, & R &= \{a\}, \\
-J &= \bigl\{(\{a\}, b),\; (\{a\}, c)\bigr\}, & N &= \bigl\{\{b, c\}\bigr\}.
-\end{aligned}
+B_c \subseteq B'_c \text{ for all } c
+\;\Longrightarrow\;
+K_v(\{B_c\}_c) \subseteq K_v(\{B'_c\}_c).
 $$
 
-For $U=\{a\} \subset V=\{a,c\}$, both individual conclusions pass the local guard at $U$, whereas $b$ is blocked at $V$:
+The operational reading is a wiring skeleton $W_v$ that routes, synchronizes, interleaves, and hides child actions, with no state of its own that is not visible in the children or in a declared substrate primitive. A **trajectory model** of $W_v$ supplies:
+
+- a set $\operatorname{legal}_{W_v}$ of legal shared trajectories $r$;
+- for each child $c$, a slice $\operatorname{slice}_c(r)$ in $\mathcal{O}_{X_c}$;
+- a projection $\operatorname{obs}_v(r)$ in $\mathcal{O}_{X_v}$.
+
+The induced transformer is
 
 $$
-T_R(U) = \{a, b, c\} \not\subseteq \{a, c\} = T_R(V).
+K_v(\{B_c\}_c)
+=
+\bigl\{\, \operatorname{obs}_v(r) \;\big|\; \operatorname{legal}_{W_v}(r)
+\ \wedge\ \forall c.\ \operatorname{slice}_c(r) \in B_c \,\bigr\}.
 $$
 
-Evaluating $T_R(U)$ in parallel derives the forbidden pair $\{b,c\}$. The fixed points of $T_R$ containing $R$ are $\{a,b\}$, $\{a,c\}$, and $\{a,b,c\}$; their intersection is $\{a\}$, which is not a fixed point of $T_R$, so no least fixed point above $R$ exists. Serializing rule applications makes the resulting fixed point depend on evaluation order. $\square$
+**Lemma 1 (Trajectory connectors are monotone).** If $B_c \subseteq B'_c$ for every $c$, then $K_v(\{B_c\}_c) \subseteq K_v(\{B'_c\}_c)$.
 
-### 3.2 Grounded and warranted closures
+**Proof.** Take $o \in K_v(\{B_c\}_c)$. There is a legal $r$ with $\operatorname{obs}_v(r) = o$ and $\operatorname{slice}_c(r) \in B_c$ for every $c$. Since $B_c \subseteq B'_c$, each slice lies in $B'_c$ as well, so $o \in K_v(\{B'_c\}_c)$. $\blacksquare$
 
-JIRL therefore separates positive derivation from conflict detection. Define the unguarded positive operator and grounded closure by
+The trajectory model is the mathematical content of the wiring. Its **operational soundness** obligation is that the implementation of $W_v$ produces only observations in the transformer's output. This is where routing, synchronization, initialization, and shared-resource behavior are established. It is a property of the connector, discharged once per wiring pattern, not a per-child obligation.
 
-$$
-F_{\mathcal{M}}(U) = R \cup U \cup \operatorname{Pos}(U), \qquad D(\mathcal{M}) = \operatorname{lfp}(F_{\mathcal{M}}).
-$$
+### 2.4 The single relation and its five uses
 
-Before computing warrant, freeze the evaluation $\mathcal E$. Let $B(x)$ denote the active obligations bound to subject $x$, and let $\operatorname{Pass}(x)$ hold when every obligation in $B(x)$ has an applicable `passed` report admitted by the assurance profile (for an admitted root $r$ with $B(r)=\emptyset$, $\operatorname{Pass}(r)$ holds vacantly as a declared commitment; for a justification $j$, eligibility requires $B(j)\ne\emptyset$, $\operatorname{Pass}(j)$, and $\operatorname{Pass}(h_j)$). Define the eligible roots and eligible justifications by
+Every behavioral obligation in the calculus is an instance of inclusion:
 
-$$
-\begin{aligned}
-R_{\mathcal{E}} &= \{r \in R \mid \operatorname{Pass}(r)\}, \\
-J_{\mathcal{E}} &= \{j \in J \mid B(j) \ne \emptyset \land \operatorname{Pass}(j) \land \operatorname{Pass}(h_j)\},
-\end{aligned}
-$$
-
-and the warranted operator and warranted closure by
-
-$$
-\begin{aligned}
-F_{\mathcal{M},\mathcal{E}}(U) &= R_{\mathcal{E}} \cup U \cup \{h_j \mid j \in J_{\mathcal{E}},\; P_j \subseteq U\}, \\
-W(\mathcal{M},\mathcal{E}) &= \operatorname{lfp}(F_{\mathcal{M},\mathcal{E}}).
-\end{aligned}
-$$
-
-Because $R_{\mathcal E}$ and $J_{\mathcal E}$ depend only on the frozen evaluation $\mathcal E$, eligibility is independent of $U$.
-
-**Theorem 1.** Both $F_{\mathcal M}$ and $F_{\mathcal M, \mathcal E}$ are monotone and inflationary on $(2^C,\subseteq)$, admit a unique least fixed point, and reach it via any fair positive-rule worklist in order-independent $O(|C|+|J|+P)$ time and space (where $P = \sum_{j \in J} |P_j|$), excluding check execution and input decoding.
-
-**Proof.** For $U\subseteq V$, $P_j\subseteq U \implies P_j\subseteq V$. Since each operator's root set and eligible rule set are fixed, every element generated at $U$ is also generated at $V$, establishing monotonicity; union with $U$ establishes inflationarity. On the finite powerset lattice $(2^C,\subseteq)$, the ascending Kleene chain
-
-$$
-X_0 = \emptyset, \qquad X_{k+1} = F(X_k)
-$$
-
-stabilizes in at most $|C|$ strict steps at a fixed point $X_*$. For any fixed point $Y$, induction gives $X_0\subseteq Y$ and $X_{k+1}=F(X_k)\subseteq F(Y)=Y$, so $X_*$ is the unique least fixed point.
-
-To compute $X_*$ in linear time, initialize for each rule $j$ a counter $c_j = |P_j|$ of unmet premises and for each claim an adjacency list of incident rules. Enqueue all roots and fire any zero-premise rules ($P_j = \emptyset$), enqueueing each newly reached claim at most once. Dequeueing a claim $p$ decrements $c_j$ for each rule $j$ with $p \in P_j$; when $c_j$ reaches $0$, rule $j$ fires and enqueues $h_j$ if unseen. By induction, every enqueued claim belongs to $X_*$, and upon queue drainage every rule whose premises lie in the reached set has fired. The reached set is therefore a fixed point containing the roots and contained in $X_*$, hence equal to $X_*$ regardless of queue discipline. Initialization, counter decrements, and storage each take $O(|C|+|J|+P)$. $\square$
-
-An unchecked justification ($B(j)=\emptyset$) contributes to grounded reachability $D(\mathcal M)$ without entering $J_{\mathcal E}$, whereas a checked zero-premise rule ($P_j=\emptyset, B(j)\ne\emptyset$) fires unconditionally in $W(\mathcal M, \mathcal E)$ once its bound obligation passes. Active nogoods on any derived configuration $X \subseteq C$ are evaluated after closure:
-
-$$
-\operatorname{ActiveNogoods}(X) = \{n \in N \mid K_n \subseteq X\}.
-$$
-
-A nonempty $\operatorname{ActiveNogoods}(W(\mathcal M, \mathcal E))$ reports the violated constraints and blocks publication of the candidate while preserving the underlying roots and alternative derivations.
-
-### 3.3 Context semantics, labels, and exponential cost
-
-Fix eligible positive rules $J_*$, mandatory roots $B$, optional assumption roots $A$ disjoint from $B$, and applicable nogoods $N$. For each assumption environment $E \subseteq A$, define its positive closure, consistency predicate, and minimal label family by
-
-$$
-C_E = \operatorname{closure}_{J_*}(B \cup E), \qquad \operatorname{Cons}(E) \Longleftrightarrow \operatorname{ActiveNogoods}(C_E) = \emptyset,
-$$
-
-$$
-\operatorname{Labels}(c) = \min_{\subseteq}\bigl\{E \subseteq A \;\big|\; \operatorname{Cons}(E) \land c \in C_E\bigr\}.
-$$
-
-**Proposition 2.** Nogood checks restricted to individual derivation trees do not establish root-context consistency.
-
-**Proof.** Let
-
-$$
-B = \{r\}, \qquad J_* = \{r \to a,\; r \to b\}, \qquad K = \{a, b\}.
-$$
-
-The derivation tree for $a$ visits $\{r,a\}$ and the derivation tree for $b$ visits $\{r,b\}$; neither contains the nogood $K=\{a,b\}$. Yet $C_\emptyset=\{r,a,b\} \supseteq K$, so every environment $E \subseteq A$ has $K \subseteq C_E$ and no consistent environment exists. $\square$
-
-**Theorem 2.** (i) Consistency is downward-closed in optional environments: $E' \subseteq E \land \operatorname{Cons}(E) \implies \operatorname{Cons}(E')$. (ii) Every label in $\operatorname{Labels}(c)$ is a consistent environment supporting $c$, and every consistent environment $E$ supporting $c$ contains some $L \in \operatorname{Labels}(c)$; consequently $c$ admits consistent support iff $\operatorname{Labels}(c)\ne\emptyset$. (iii) For a finite nonempty target set $T$, joint consistent support exists iff there is a selection $(L_t \in \operatorname{Labels}(t))_{t \in T}$ satisfying
-
-$$
-\operatorname{Cons}\!\Bigl(\bigcup_{t \in T} L_t\Bigr),
-$$
-
-and for $T=\emptyset$ joint consistent support exists iff $\operatorname{Cons}(\emptyset)$.
-
-**Proof.** (i) For $E'\subseteq E$, monotonicity of positive closure gives $C_{E'}\subseteq C_E$; any nogood $K_n \subseteq C_{E'}$ would also lie in $C_E$, so $\operatorname{Cons}(E) \implies \operatorname{Cons}(E')$.
-
-(ii) Soundness follows directly from the definition of $\operatorname{Labels}(c)$. Given a consistent environment $E$ with $c\in C_E$, the finite family $\{E'\subseteq E \mid \operatorname{Cons}(E')\land c\in C_{E'}\}$ is nonempty and therefore has an inclusion-minimal member $L$. Because any $E'' \subset L$ lies inside $E$, $L$ is also minimal in $2^A$, so $L\in\operatorname{Labels}(c)$ and $L\subseteq E$. Thus for any consistent $E$, $c\in C_E \iff \exists L\in\operatorname{Labels}(c),\; L\subseteq E$.
-
-(iii) If a consistent $E$ supports every $t \in T$, part (ii) yields $L_t \subseteq E$ for each $t$, and their union $U = \bigcup_{t \in T} L_t \subseteq E$ is consistent by (i). Conversely, if $U = \bigcup_{t \in T} L_t$ is consistent, monotonicity gives $t \in C_{L_t} \subseteq C_U$ for every $t \in T$. For $T=\emptyset$, (i) implies that any consistent $E$ witnesses $\operatorname{Cons}(\emptyset)$. $\square$
-
-**Proposition 3.** An $O(n)$-size positive justification system can have $2^n$ minimal labels for a single claim.
-
-**Proof.** Let $A=\{a_i,b_i \mid 1\le i\le n\}$, $B=\emptyset$, $N=\emptyset$, with rules $a_i\to x_i$, $b_i\to x_i$ ($1\le i\le n$) and $\{x_1,\dots,x_n\}\to z$. An environment $E \subseteq A$ derives $z$ iff $E \cap \{a_i,b_i\} \ne \emptyset$ for every $i$, and $E$ is inclusion-minimal iff $|E \cap \{a_i,b_i\}| = 1$ for every $i$. The monotone lineage formula and minimal-label count are therefore
-
-$$
-\Phi_{\text{mon}}(a, b) = \bigwedge_{i=1}^n (a_i \lor b_i), \qquad \bigl|\operatorname{Labels}(z)\bigr| = 2^n,
-$$
-
-requiring $\Omega(n2^n)$ symbols to materialize explicitly even though the factored circuit has size $O(n)$. $\square$
-
-For graphs with positive support cycles, JIRL retains the finite positive hypergraph or its least-fixed-point Boolean circuit rather than semiring provenance over $\mathbb N[X]$: a self-loop $p \to p$ on root $p$ stabilizes at $\{p\}$ under Boolean idempotence, whereas the formal power-series equation $p = a + p$ diverges over $\mathbb N[X]$. Because explicit label materialization can grow exponentially, context enumeration is executed on demand under an explicit work and output budget, returning an `incomplete` report with discovered witnesses if the budget is exhausted.
-
-### 3.4 Assurance and publication readiness
-
-Warrant $W(\mathcal M, \mathcal E)$ is evaluated relative to the admitted roots $R$, the assurance profile, and the current exact-request evidence in $\mathcal E$. Only `passed` reports admit a bound obligation into $R_{\mathcal E}$ or $J_{\mathcal E}$; outcomes `refuted`, `incomplete`, `unsupported`, `error`, and `not_run` do not discharge the obligation, while their distinct tags preserve diagnostic and recovery semantics (for example, distinguishing a budget timeout that invites resumption from an unsupported checker adapter). Because warrant propagates along any eligible derivation in $J_{\mathcal E}$, a claim supported by a passing derivation remains warranted even when an alternative derivation route fails.
-
-The publication readiness reducer checks five conditions: (1) structural and reference-closure validity of $\mathcal M$, (2) $R_C \subseteq W(\mathcal M, \mathcal E)$, (3) every required obligation in $R_O$ has an admitted `passed` report, (4) $\operatorname{ActiveNogoods}(W(\mathcal M, \mathcal E)) = \emptyset$, and (5) all decision consistency, resolution, and profile-specific independence requirements hold. Grounded reachability $D(\mathcal M)$, warranted closure $W(\mathcal M, \mathcal E)$, active nogoods, check reports, and authorization decisions are exposed as separate inspection projections on the snapshot.
-
-## 4. Compositional verification boundaries and executable realization
-
-### 4.1 Selecting a composition rule
-
-**Proposition 4.** Intent connected components and raw dependency-SCC cardinality are neither sufficient nor necessary criteria for choosing between joint state-space exploration and compositional contract verification.
-
-**Proof.** Connect two independent Boolean state machines $M_1, M_2$ to a shared parent rationale claim. Equip each $M_i$ with a local safety invariant $\Phi_i$ preserved by its own transitions and a frame condition stating that $M_{3-i}$ does not modify $M_i$'s state. Then $\Phi_1 \land \Phi_2$ is discharged compositionally by local invariance plus framing even though the intent graph is connected. Conversely, let $M_1, M_2$ be disconnected in the intent graph while both acquire a shared capacity-one resource omitted from the rationale edges; each local transition system satisfies its local specification, whereas the composed product violates mutual exclusion.
-
-Similarly, a single component with transition sequence $\text{idle}\to\text{sent}\to\text{acked}$ forms a singleton SCC yet requires temporal behavioral verification. Conversely, an acyclic two-stage pipeline $\text{producer}\to\text{consumer}$ where the producer emits $\text{send}$ before $\text{close}$ while the consumer accepts $\text{close}$ before $\text{send}$ is already incompatible at its initial product state despite having no multi-node SCC. Finally, two components with state variables $x,y$ initialized to $0$ that mutually observe each other while retaining $0$ form a two-node interface SCC whose joint invariant $x=0 \land y=0$ holds by local invariance and framing without product exploration. Behavioral contracts include transition-system models as well as pre/postcondition predicates. $\square$
-
-For an obligation $o$, define the semantic interference relation $\operatorname{interferes}_o(x,y)$ to hold when an admitted variation in $x$ can alter a state, event, resource, configuration, or query collection consumed in establishing $y$'s contribution to $o$ within the declared model horizon. Strongly connected components of $\operatorname{interferes}_o$ help schedule verification tasks, while the obligation itself specifies the observable boundary, component and environment semantics, composition rule, and code-correspondence duty. Introducing a bounded queue between components introduces a stateful connector with its own ordering, capacity, and progress obligations.
-
-### 4.2 Joint product exploration
-
-Let each component $i$ be a labeled transition system $M_i=(S_i,I_i,\Sigma_i,\to_i)$ with initial states $I_i \subseteq S_i$, and let $P = (S_P, I_P, \Sigma_P, \to_P)$ be their declared parallel composition under explicit synchronization, interleaving, shared-state, and environment rules. Discharging a state invariant $\Phi \subseteq S_P$ on $P$ requires
-
-$$
-I_P \subseteq \Phi, \qquad \forall s \in \operatorname{Reach}(P),\; s \xrightarrow{a}_P s' \Longrightarrow (s \in \Phi \Rightarrow s' \in \Phi).
-$$
-
-By induction on trace length, these two conditions establish $\operatorname{Reach}(P) \subseteq \Phi$, whereas any reachable state $s \notin \Phi$ yields a finite counterexample trace. Deadlock freedom ($\forall s \in \operatorname{Reach}(P) \setminus \text{Term},\; \exists a, s',\; s \xrightarrow{a}_P s'$) and temporal liveness under stated fairness assumptions are specified as separate obligations. Over an explicit finite product graph, invariant exploration takes $O(|S_P|+|T_P|)$ time and space after constructing $P$ (where $|S_P|$ may grow as $\prod_i |S_i|$); when exploration is truncated by a depth or state bound without an analytical completeness threshold, the checker reports `incomplete`.
-
-### 4.3 Sequential contracts, interface automata, and budget splitting
-
-In a feed-forward functional pipeline, stage Hoare triples $\{P_i\}\; C_i\; \{Q_i\}$ compose sequentially once each implication $Q_i \implies P_{i+1}$ and frame condition are discharged; adding stage termination establishes total correctness for the pipeline.
-
-For reactive protocols, an interface automaton $P=(S,s_0,I,O,H,T)$ partitions actions into inputs $I$, outputs $O$, and hidden internal steps $H$, without requiring input-enabledness at every state [7]. Two interface automata $P, Q$ are composable when their hidden actions are disjoint from all actions of the partner and their input and output sets are pairwise disjoint; shared actions $\operatorname{shared}(P,Q) = (I_P \cap O_Q) \cup (O_P \cap I_Q)$ synchronize and become hidden in the product $P \otimes Q$. A product state $(s,t) \in \operatorname{Illegal}(P,Q)$ arises when one automaton enables a shared output $a$ that the partner does not enable as an input. Letting $\operatorname{OHpre}(U)$ denote product states that can reach $U$ via a single output or hidden step, define
-
-$$
-\operatorname{Bad} = \mu X.\bigl(\operatorname{Illegal} \cup \operatorname{OHpre}(X)\bigr), \qquad \operatorname{Cmp} = S_{P \times Q} \setminus \operatorname{Bad}.
-$$
-
-Composable interface automata $P$ and $Q$ are optimistically compatible iff $(s_{0,P}, s_{0,Q}) \in \operatorname{Cmp}$ [7, §§3.1–3.3]. Any state in the $k$-th approximant of $\operatorname{Bad}$ can be forced into $\operatorname{Illegal}$ in $k$ autonomous output/hidden steps that no environment can block. Conversely, outside $\operatorname{Bad}$, an environment that accepts all component outputs and withholds all component inputs keeps execution within $\operatorname{Cmp}$ indefinitely (including at safe terminal states with no enabled inputs). Because optimistic compatibility asserts the *existence* of a helpful environment, deployment transfer requires discharging that the actual deployment environment satisfies the composite interface assumptions, and progress requires a separate non-silent environment obligation.
-
-Interface refinement uses alternating simulation over $\epsilon$-closures [7, §4]. With $\epsilon_P(s)$ denoting states reachable from $s$ by hidden steps, define
-
-$$
-\begin{aligned}
-\operatorname{In}_P(s)&=\bigcap_{u\in\epsilon_P(s)}\operatorname{enabledInput}_P(u),\\
-\operatorname{Out}_P(s)&=\bigcup_{u\in\epsilon_P(s)}\operatorname{enabledOutput}_P(u),\\
-\operatorname{Dest}_P(s,a)&=\{u':\exists u\in\epsilon_P(s),\ u\xrightarrow a_Pu'\}.
-\end{aligned}
-$$
-
-An alternating simulation $\mathcal R\subseteq S_{\rm abs}\times S_{\rm impl}$ relates initial states, requires $I_{\rm abs} \subseteq I_{\rm impl}$ and $O_{\rm impl} \subseteq O_{\rm abs}$, and satisfies for every $(s,t)\in\mathcal R$:
-
-$$
-\operatorname{In}_{\rm abs}(s)\subseteq\operatorname{In}_{\rm impl}(t),\quad
-\operatorname{Out}_{\rm impl}(t)\subseteq\operatorname{Out}_{\rm abs}(s),
-$$
-
-together with $\forall a\in\operatorname{In}_{\rm abs}(s)\cup\operatorname{Out}_{\rm impl}(t)$ and $\forall t'\in\operatorname{Dest}_{\rm impl}(t,a)$, $\exists s'\in\operatorname{Dest}_{\rm abs}(s,a)$ with $(s',t')\in\mathcal R$. Substitutability in an environment context $E$ follows when $E$ is composable with the implementation and exercises only inputs present in $I_{\rm abs}$.
-
-For a quantitative end-to-end latency budget across stage timestamps $t_0\le t_1\le\cdots\le t_k$ of the **same request**, stage bounds $t_i - t_{i-1} \le b_i$ that partition the full request path (including queueing, retries, synchronization, and scheduler wait at each handoff) telescope directly:
-
-$$
-\begin{aligned}
-t_0 \le t_1 \le \cdots \le t_k, \qquad t_i - t_{i-1} &\le b_i \quad (1 \le i \le k), \\
-\sum_{i=1}^k b_i \le B &\Longrightarrow t_k - t_0 \le B.
-\end{aligned}
-$$
-
-### 4.4 Circular assume-guarantee reasoning without vacuity
-
-Naive circular implications $A_i\land L_i\Rightarrow G_i$ and $\bigwedge_jG_j\Rightarrow A_i$ admit a vacuous assignment in which every $A_i$ and $G_i$ is identically false. Breaking this circularity requires well-founded induction along execution prefixes.
-
-For any infinite execution $\sigma$ and prefix-closed safety property $P$ (where the empty prefix satisfies $P[0]$), let $P[k]$ denote that the length-$k$ prefix of $\sigma$ satisfies $P$. Given environment constraint $E$, concrete component implementations $L_i$, safety guarantees $G_i$, and safety assumptions $A_i$, the finite-prefix circular safety obligations are:
-
-1. **Local one-step extension:** on every execution of $L_i$ under $E$ and the declared open-component semantics,
-
-   $$
-   A_i[k] \Longrightarrow G_i[k+1] \qquad (\forall k \ge 0).
-   $$
-
-2. **Assumption compatibility:** on every admitted prefix under $E$,
-
-   $$
-   \bigwedge_j G_j[k] \Longrightarrow A_i[k] \qquad (\forall i,\; \forall k \ge 0).
-   $$
-
-3. **Semantic composition:** every execution of the composed implementation under $E$ projects to executions of each $L_i$ satisfying the framing, shared-variable, and hiding side conditions.
-
-**Lemma 3 (Non-vacuous circular safety).** Under duties (1)–(3), every execution of the composed implementation under $E$ satisfies the safety property $\bigwedge_i G_i$.
-
-**Proof.** Fix a composed execution $\sigma$ under $E$. By prefix closure of safety properties, $G_i[0]$ holds for all $i$. Assuming $\bigwedge_j G_j[k]$, duty (2) yields $A_i[k]$ for all $i$, and duty (1) applied via duty (3) yields $G_i[k+1]$ for all $i$. Induction on $k$ establishes $G_i[k]$ for every prefix length $k \ge 0$, which by definition of a safety property implies that $\sigma$ satisfies every $G_i$. Because $A_i[0]$ holds at the base step, duty (1) immediately forces $G_i[1]$ on the initial transition, preventing vacuous circularity. $\square$
-
-When a specification requires general TLA properties combining safety and liveness, an obligation adapter can invoke the full Abadi–Lamport decomposition theorem [8, §4.3]. With $\operatorname{cl}(F)$ denoting the safety closure of $F$ and $F^{+v}$ denoting the property that permits a first violation of $F$ and thereafter freezes state tuple $v$, the rule discharges
-
-$$
-\begin{aligned}
-\models\bigwedge_j\operatorname{cl}(G_j)&\Rightarrow A_i,\\
-\models\operatorname{cl}(A_i)^{+v}\land\operatorname{cl}(L_i)&\Rightarrow\operatorname{cl}(G_i),\\
-\models A_i\land L_i&\Rightarrow G_i,
-\end{aligned}
-$$
-
-subject to the environment-closure, variable-hiding, and refinement-mapping side conditions of [8].
-
-### 4.5 Vertical refinement and receptiveness
-
-Let $M_A=(S_A,I_A,\Sigma_A,\to_A)$ and $M_C=(S_C,I_C,\Sigma_C,\to_C)$ be abstract and concrete transition systems connected by a state abstraction map $\alpha:S_C\to S_A$ and action map $\lambda:\Sigma_C\to\Sigma_A\cup\{\epsilon\}$. On the reachable concrete state space, require $\alpha(I_C)\subseteq I_A$ and the step simulation condition
-
-$$
-s\xrightarrow a_Cs'\Longrightarrow
-\begin{cases}
-\alpha(s)\xrightarrow{\lambda(a)}_A\alpha(s'),&\lambda(a)\ne\epsilon,\\
-\alpha(s)=\alpha(s'),&\lambda(a)=\epsilon.
-\end{cases}\tag{R1}
-$$
-
-**Lemma 4 (Finite-trace safety preservation).** Initial mapping $\alpha(I_C)\subseteq I_A$ and (R1) map every concrete finite execution, after erasing $\epsilon$-steps, to a valid abstract execution with matching abstract endpoints, preserving all universal finite-trace safety properties from $M_A$ to $M_C$.
-
-**Proof.** A zero-step concrete execution maps to an abstract initial state in $I_A$. Inductively, if a concrete prefix ending at $s$ maps to an abstract execution ending at $\alpha(s)$, a concrete step $s \xrightarrow{a}_C s'$ either extends the abstract execution by $\alpha(s) \xrightarrow{\lambda(a)}_A \alpha(s')$ when $\lambda(a) \ne \epsilon$, or leaves the abstract endpoint $\alpha(s)=\alpha(s')$ unchanged when $\lambda(a) = \epsilon$. $\square$
-
-Because (R1) alone is satisfied by a trivial concrete system with no enabled transitions, interface substitutability adds an **input receptiveness** obligation: for every reachable concrete state $s$ and every abstract input $a$ enabled at $\alpha(s)$, the concrete input adapter must enable at least one corresponding concrete input transition from $s$ whose responses satisfy (R1). Likewise, preserving response liveness across potentially silent concrete steps ($\lambda(a)=\epsilon$) requires a well-founded rank on consecutive silent steps together with the applicable fairness assumptions.
-
-### 4.6 Leaf realization
-
-At the bottom of a refinement hierarchy, a leaf realization obligation relates pinned program bytes $P$ to a leaf specification $M$ under an explicit compilation/runtime environment and observation adapter $\operatorname{implements}(P,M)$:
-
-* **Checked generation or translation validation.** A verified code generator or per-artifact translation validator establishes $\operatorname{implements}(P,M)$ for a restricted modeling fragment under the pinned toolchain contract.
-* **Independently authored code with scoped conformance.** An execution trace adapter maps concrete runtime events to actions of $M$. Property-based and replay tests establish conformance over the exercised finite trace set; exhaustive bounded model checking establishes conformance up to the declared state and input bounds; and deductive program verification establishes universal trace inclusion $\operatorname{Traces}(P)\subseteq\operatorname{Traces}(M)$ relative to the formalized language semantics.
-
-## 5. Incremental evolution and transactional publication
-
-### 5.1 Applicability, early cutoff, and from-scratch consistency
-
-**Proposition 5.** Neither unchanged artifact identity nor unchanged authored interface digest suffices on its own to certify check reuse.
-
-**Proof.** Let $f()=0$. Against obligation $o_1: \text{result}\ge 0$, $f$ passes; when the obligation is strengthened to $o_2: \text{result}>0$ without modifying $f$'s bytes, keying a cache solely by artifact digest falsely reuses `passed`. Second, let $f()=1$ and $g()=-1$ share the authored interface signature $()\to\text{int}$ with postcondition $\text{result}\ge 0$; their interface digests are identical even though $g$ violates the interface contract, so interface-based cutoff requires verified provider conformance. Third, even when $f_1()=1$ and $f_2()=2$ both conform to $\text{result}\ge 0$, a consumer check testing $\text{result}=1$ distinguishes them because its observation is not factored through the coarse interface predicate. $\square$
-
-Define incremental evaluation over a finite DAG $V$ of **verification units** (where cyclic component dependencies are encapsulated within a single joint unit or evaluated via a fixed-point operator of proved determinism). With external inputs $x$ pinned, a deterministic cold evaluator computes in topological order
-
-$$
-r_v = f_v\bigl(p_v(x, (r_u)_{u \in \operatorname{pred}(v)})\bigr),
-$$
-
-where $p_v$ is a complete observational projection of the inputs and predecessor results consumed by $v$ (including any queried collection memberships), and $f_v$ encapsulates checker identity, obligation specification, configuration, budget, assurance policy, and the semantic verdict projection.
-
-**Theorem 3.** Suppose (a) the verification-unit DAG $V$, evaluator functions $f_v$, and complete observational projections $p_v$ are validated for the candidate input; (b) cold evaluation is deterministic and terminating; (c) each cache entry for $v$ stores a prior evaluation of the identical $f_v$ at a recorded projection value, or a verified reuse certificate establishes $f_v(p_v(\text{new})) = r_v^{\text{cached}}$; (d) the incremental evaluator traverses affected units in topological order and reuses $r_v^{\text{cached}}$ only when $p_v(\text{new}) = p_v(\text{cached})$ or a verified reuse certificate holds; and (e) the readiness reducer is a deterministic function of exact material, unit verdicts, assurance profile, and environment. Then incremental evaluation produces the exact cold verdict vector $(r_v)_{v \in V}$ and readiness outcome. In particular, change propagation cuts off at a semantic interface whenever the new provider is proved to conform to that interface and every downstream consumer's complete projection $p_v$ factors exclusively through that interface.
-
-**Proof.** We induct along a topological order of $V$. For any source unit $v$, $p_v$ depends only on pinned external inputs $x$, which coincide in cold and incremental runs. For an internal unit $v$, the induction hypothesis gives equality of predecessor results $(r_u)_{u \in \operatorname{pred}(v)}$, so the newly computed projection $p_v(\text{new})$ equals the cold projection. On a cache miss, incremental evaluation invokes $f_v(p_v(\text{new}))$, matching the cold result; on an equal-projection hit or certified reuse, condition (c) guarantees equality with $f_v(p_v(\text{new}))$. Feeding the identical result vector into the deterministic reducer (e) yields the identical closure, conflict set, and readiness verdict. When a provider change preserves a verified semantic interface through which a consumer's projection $p_v$ factors completely, $p_v(\text{new}) = p_v(\text{cached})$ holds and propagation terminates at the interface boundary. $\square$
-
-Each hypothesis in Theorem 3 is load-bearing: if a checker inspects unprojected implementation details, if a stochastic checker is run without a pinned random seed, or if wall-clock timeouts vary outside the modeled projection $p_v$, cold and incremental runs can diverge on the unmodeled channel. When an earlier `EvidenceRecord` is reused via a projection or certificate check, a fresh `EvidenceRecord` binds the new exact `CheckRequest` to the earlier `basis` reference.
-
-### 5.2 Deterministic orchestration and phase-structured outcomes
-
-Given a candidate interpretation, choice policy $\pi$, authority policy $\alpha$, and recorded external checker/provider observations $\omega$, the orchestration reducer is deterministic. The evolution interface partitions outcomes by protocol phase:
-
-$$
-\begin{aligned}
-\operatorname{evolve}(G, \Delta I, \pi, \alpha; \omega) \in \bigl\{
-  &\operatorname{Published}(\mathcal{S}),\;
-   \operatorname{Halted}(\text{phase}, \text{cause}, \text{evidence}), \\
-  &\operatorname{PublicationIndeterminate}(\text{attempt}, \text{observations})
-\bigr\},
-\end{aligned}
-$$
-
-where $\text{phase} \in \{\text{Construct}, \text{Evaluate}, \text{Authorize}, \text{Publish}\}$. Distinguishing `PublicationIndeterminate` from `Halted` preserves the store boundary condition in which an atomic ref update may have succeeded before an acknowledgement or readback failure occurred.
-
-```text
-evolve(bases, intent, policy, authority, observations):
-  Construct: select interpretation and assemble a complete immutable Material
-              (choices, obligation revisions, retirements, and merge reconciliation)
-              or return Halted(Construct, invalid_input | unresolved, diagnostics)
-  Evaluate:  validate schema and closure; bind exact CheckRequests; execute or certify reuse;
-              freeze E; compute D(M), W(M, E), ActiveNogoods(W), and readiness
-              or return Halted(Evaluate, blocked, E)
-  Authorize: diff protected accepted items and roles against all bases;
-              request coverage for (bases, M, E, dispositions) from authority provider
-              or return Halted(Authorize, unauthorized | provider_indeterminate, receipt)
-  Publish:   persist immutable objects and seal Snapshot S;
-              execute atomic expected-head compare-and-swap with durable transition log
-              return Published(S) | Halted(Publish, stale_base, head)
-                   | PublicationIndeterminate(S, observations)
-```
-
-The candidate $\mathcal M$ is sealed upon entering `Evaluate`: any modification to claims, selections, or obligations constructs a new `Material` and restarts at `Construct`. Similarly, reconciling a `stale_base` conflict constructs and evaluates a new merged candidate before requesting fresh authorization against the updated parent heads.
-
-### 5.3 Read skew, semantic merge, and protected changes
-
-**Proposition 6.** Resolving dependencies by independently selecting the newest revision of each lineage can violate both cross-claim invariants and structural acyclicity invariants.
-
-**Proof.** Consider state variables $(x,y)$ subject to invariant $x=y$ from base $(0,0)$. Branch $P$ publishes $(1,1)$ and branch $Q$ publishes $(2,2)$, with timestamps ordered so $P.x$ is newer than $Q.x$ while $Q.y$ is newer than $P.y$. Selecting the newest revision of each lineage yields $(1,2)$, violating $x=y$. Similarly, for an application imposing acyclicity on a relation over vertices $\{p,q\}$, let one branch add $p \to q$ and another add $q \to p$; each branch is acyclic, whereas taking the union of newest lineage revisions creates the cycle $p \leftrightarrows q$. Pinned content references in $\mathcal S$ prevent both mixtures. $\square$
-
-**Lemma 5 (Publication safety).** Under immutable retained objects, validated reference closure, a sound readiness reducer, an authority provider covering all modified or retired protected base items and roles, and a linearizable expected-head compare-and-swap that records durable transition receipts, every `Published(S)` transition installs an evaluated and authorized snapshot $\mathcal S$, concurrent pinned readers observe a single coherent snapshot, and every change to a protected base item or role is accompanied by an authorized `AcceptedDisposition`.
-
-**Proof.** Pre-publication validation binds $\mathcal S$'s exact `material`, `evaluation`, and `parents` references to those covered by $\mathcal A$, and readiness was established on those identical bytes. The atomic compare-and-swap on the named ref either aborts without mutation when the current head differs from $\text{parents}[0]$ or linearizes at a single transition installing $\mathcal S$. For every protected item and role in the base snapshots (`roots`, `requiredClaims`, `requiredObligations`, `justifications`, `decisions`, `nogoods`), the base-diff check verifies either exact retention in the same role or an explicit `AcceptedDisposition` covered by $\mathcal A$. Pinned readers resolve $\mathcal S$ in $O(1)$ store operations by Lemma 2. $\square$
-
-Checking protected roles as well as object existence is essential: keeping an obligation in `obligations` while removing it from `requiredObligations`, or demoting a root in `roots` to an ordinary claim in `claims`, withdraws an accepted guarantee and therefore requires an explicit `AcceptedDisposition`. Likewise, expected-head compare-and-swap serializes updates to a single ref, while semantic compatibility across merged branches (for example, when two branches independently consume $10$ units of a shared capacity-$10$ budget $x+y\le 10$ from base $(0,0)$) is enforced by re-evaluating the joint obligation on the merged `Material`.
-
-## 6. Feasibility, complexity, and falsification
-
-### 6.1 Algorithmic costs and their boundaries
-
-Let $c=|C|$, $j=|J|$, $p=\sum_j|P_j|$, $n=|N|$, $q=\sum_n|K_n|$, $a=|A|$, $o=|O|$, and $b$ denote the encoded byte length of inspected objects. Solver and checker execution times enter as explicit additive terms.
-
-| Operation | Time | Working / storage space | Scope condition |
+| Use | Left side | Right side | Where checked |
 |---|---|---|---|
-| Decode, canonicalize, and validate | $\Omega(b)$ plus canonical sort cost | Encoded objects and index tables | Fixed schema and closed references |
-| Grounded closure $D(\mathcal M)$ | $O(c+j+p)$ | $O(c+j+p)$ | Counter worklist on canonical premise sets |
-| Warranted closure $W(\mathcal M, \mathcal E)$ | $O(c+j+p+o)$ plus check execution | Worklist and outcome index | Frozen eligibility $\mathcal E$ |
-| Active nogood check | $O(n+q)$ | $O(n)$ counters plus membership bitmap | Subset test against derived configuration |
-| Single-environment consistency $\operatorname{Cons}(E)$ | $O(c+j+p+n+q)$ | $O(c+j+p+n)$ | Fixed eligible rules and nogoods |
-| Exhaustive environment oracle (all $E \subseteq A$) | $O(2^a(c+j+p+n+q)+a2^a)$ | $O(2^a)$ table plus emitted labels | Subset DP for inclusion-minimality |
-| Explicit minimal labels $\operatorname{Labels}(z)$ | $\Omega(n_0 2^{n_0})$ symbols (Prop. 3) | Output size if materialized | Worst-case output lower bound for $n_0$ pairs |
-| Budgeted why/context query | Bounded by declared work/output budget | Declared frontier and output buffer | Returns `incomplete` on budget exhaustion |
-| Scoped absence scan | $O(\lvert I_\sigma\rvert\,T_q)$ plus payload bytes | Match buffer and iterator state | Decidable predicate of per-claim cost $T_q$ |
-| Explicit product invariant check | $O(\lvert S_P\rvert+\lvert T_P\rvert)$ | $O(\lvert S_P\rvert+\lvert T_P\rvert)$ | $\lvert S_P\rvert$ can grow as $\prod_i \lvert S_i\rvert$ |
-| Untimed IA optimistic compatibility | Product build $+ O(\lvert S_{P\times Q}\rvert+\lvert T_{P\times Q}\rvert)$ | Product graph and backward $\operatorname{OHpre}$ index | Finite safety game [7] |
-| Compositional AG / refinement check | Sum of component obligation check costs | Checker-dependent | Requires user/adapter-supplied assumptions |
-| Pinned snapshot root resolution | $O(1)$ indexed store lookups | Root envelope bytes | Full closure traversal of $k$ objects is $O(k)$ |
-| Snapshot diff | Proportional to visited index nodes and delta | Traversal frontier plus emitted diff | Structural sharing bounds unchanged subtrees |
-| Certified incremental evaluation | Dependency scan + projection check + affected $f_v$ | Dependency graph and cache entries | Theorem 3 guarantees cold equivalence; worst-case impact is $O(\lvert V\rvert)$ |
-| Expected-head publication | Object write cost + atomic ref CAS | New immutable objects and transition log | Linearizable ref store with durable log |
+| Satisfaction | $\operatorname{beh}(M_v)$ | active intent $\Phi$ | layer $k$ |
+| Wiring adequacy | $\operatorname{Beh}(C_v[Q_c])$ | $K_v(\{\alpha_c(Q_c)\}_c)$ | layer $k$, universally over admissible $Q_c$ |
+| Decomposition | $K_v(\{B_{v,c}\}_c)$ | $\operatorname{beh}(M_v)$ | layer $k$ |
+| Refinement | $\operatorname{beh}(M_c)$ | contract $B_{v,c}$ | layer $k+1$ |
+| Realization | $\operatorname{beh}(P_\ell)$ | $\operatorname{beh}(M_\ell)$ | layer $L$ |
 
-The $O(2^a(c+j+p+n+q)+a2^a)$ exhaustive label oracle evaluates $C_E$ and $\operatorname{Cons}(E)$ for each $E \subseteq A$ and applies boolean subset dynamic programming to filter out environments with a supporting proper subset, providing a simple reference oracle for differential testing on small assumption sets. While the finite positive support kernel runs in linear time $O(c+j+p)$, end-to-end evaluation time is governed by the attached verification obligations and by the breadth of obligations affected by a change.
+The algebra is small on purpose. The paper's correctness argument is the transitive closure of this table, and the engineering content is the discipline that decides what to put on each side.
 
-### 6.2 Authoring and maintenance cost
+### 2.5 Semantic profiles
 
-The practical adoption bottleneck for design-rationale and formal-refinement systems is the ratio of authoring and maintenance effort to diagnostic and verification value. JIRL bounds capture scope through **obligation-scoped recording**: claims, grouped justifications, decision records, and interference links are recorded when they feed an active verification obligation, impact query, protected authority gate, or required architectural decision record.
+A **semantic profile** $\Gamma$ fixes the observation class and the obligations that accompany it:
 
-Obligations support three complementary assurance practices that may be combined on the same subsystem:
+- **Safety profile.** Observations are finite visible traces; $M \preceq A$ is trace inclusion.
+- **Liveness profile.** Observations are maximal traces under a declared fairness condition; refinement preserves maximality and fairness, and a progress obligation accompanies the trace inclusion.
+- **Timed and probabilistic profiles.** Observations are timed traces or path measures; refinement uses the corresponding measurable or timed preorder.
 
-* **Argumentative:** structured claims, grouped premises, and explicit trade-off decisions (`DecisionRecord`), with empirical subclaims bound to test or query evidence.
-* **Contractual:** explicit interface specifications and environment assumptions (such as Hoare pre/postconditions or interface automata) governing component boundaries.
-* **Mechanical:** automated proof, model-checking, or conformance test obligations discharging behavioral refinement and invariance properties.
+Two side conditions belong to every open-interface profile:
 
-With $k$ denoting the number of recorded obligation and decision events, $u_i$ the authoring, review, and disposition cost of event $i$, $v$ the checker integration cost, and $s$ the saved debugging and rework cost, the net engineering overhead is
+- **Input receptiveness.** If a contract permits an input at a related state, the child must accept it. Without this condition, a child can satisfy a safety contract by refusing every request, which is not an admissible replacement.
+- **Progress preservation.** For a liveness contract, the child must preserve the required maximal fair executions. Finite-prefix inclusion alone admits a machine that accepts a request and then stops.
+
+The core theorems are stated for the trace profile with these two side conditions. The timed and probabilistic instantiations use the same layer structure and the same schema; only the profile's refinement relation and composition lemma change.
+
+### 2.6 Boundary discipline
+
+A contract constrains observable behavior at the child interface and the child's duties to the connector. It may specify:
+
+- the inputs the child must accept;
+- the outputs it may produce and their order;
+- relations between its outputs and shared connector state;
+- progress or termination duties;
+- the environment assumptions under which those duties hold.
+
+It does not prescribe the child's internal algorithm, data layout, module structure, or implementation strategy. The child is free to choose any implementation whose behavior lies within the contract. This is the boundary rule that makes independent development possible: **the parent owns the interface; the child owns the implementation.**
+
+---
+
+## 3. Layers and Stratified Development
+
+### 3.1 The layer record
+
+A **layer** is a finite record
 
 $$
-\operatorname{overhead} = \sum_{i=1}^k u_i + v - s.
+\mathcal{L}_k = \bigl(I_k,\ J_k,\ D_k,\ V_k,\ \chi_k,\ E_k\bigr).
 $$
 
-Enforcing a recording budget $k \le k_{\max}$ bounds allocated authoring effort at the cost of leaving unrecorded subsystems outside the ledger's coverage scope.
+The fields have distinct roles.
 
-### 6.3 Epistemic limits and deployment profiles
+**$I_k$ — intent records.** A finite set of intents. Each $c \in I_k$ carries:
 
-Formal kernel guarantees operate within three foundational boundaries: (1) adequacy of formal specifications with respect to informal human intent remains a domain-validation problem [3,12]; (2) physical interference channels outside the declared model horizon (such as unmodeled shared hardware, timing channels, or operating-system state) are invisible to model-level checks; and (3) undecidable properties of general Turing-complete programs require conservative abstraction, interactive proof, or bounded testing.
+- a stable identifier $\operatorname{id}(c)$ and an exact content digest;
+- an owner cell $\operatorname{owner}(c) \in V_k$; an interaction-boundary label may annotate the owner for explanation, but the owner is always a cell;
+- a predicate $\llbracket c \rrbracket \subseteq \mathcal{O}_{X_{\operatorname{owner}(c)}}$;
+- an authority tag: $\mathrm{root}$, $\mathrm{protected}$, or $\mathrm{delegated}$.
 
-Within those boundaries, deployments can combine two evaluation strategies with optional modeling restrictions:
+A requirement that has no formal interpretation is recorded as an intent with a pending formalization status; it remains visible and blocks the obligations that depend on it. Ownership is total and unique: every active intent is owned by exactly one cell, so the per-cell required sets cover $A_k$.
 
-| Deployment profile | Mechanism and primary benefit | Primary cost or vulnerability |
+**$J_k$ — support links.** For each $c \in I_k$, a finite set $J_k(c)$ of support groups. Each group $P \in J_k(c)$ is a finite set of references to earlier intents or earlier selected decisions, including contract selections. A group is conjunctive: all of its references must be active. Multiple groups are alternatives: any one suffices. The support link is provenance; when it claims logical entailment rather than an accepted design rationale, it carries a separate proof obligation.
+
+**$D_k$ — decision records.** A finite set of design decisions. Each decision $d \in D_k$ has:
+
+- a question identifier $q(d)$;
+- a selected option $o(d)$;
+- a finite set $\operatorname{alt}(d)$ of rejected alternatives, each with an assessment and a reopening condition;
+- a finite prerequisite set $\operatorname{prem}(d)$ of references;
+- a rationale $\operatorname{why}(d)$;
+- a selection proposition $\operatorname{sel}(q(d), o(d))$;
+- a reopening predicate $\operatorname{reopen}(d)$ on the environment or version.
+
+The ledger also carries a finite set $N_k$ of **nogoods**: each nogood is a finite set of selection propositions that cannot all be true. A decision is **evaluated independently**: its prerequisites may mention the layer's active intents and earlier layers' selections, but not the selections of the same layer. After the layer's decisions are evaluated, the joint consistency of $S_k$ with the nogoods is checked. If two decisions need each other, they are placed at different layers or merged. This restriction is what keeps the recurrence a single pass.
+
+**$V_k$ — cells.** A finite set of components. Each cell $v \in V_k$ owns:
+
+- an interface $X_v$ and observation space $\mathcal{O}_{X_v}$;
+- a machine $M_v$ at $X_v$;
+- its active intents $\Phi_k(v) = \bigcap_{c \in A_k(v)} \llbracket c \rrbracket$, where $A_k(v) \subseteq A_k$ is the set of active intents owned by $v$;
+- a semantic context $\Gamma_v$ (profile, fairness, environment assumptions).
+
+**$\chi_k$ — decomposition or realization.** For $k < L$, each non-leaf cell $v \in V_k$ has a decomposition record
+
+$$
+\chi_k(v) = \bigl(W_v,\ \operatorname{ch}(v),\ (B_{v,c})_{c \in \operatorname{ch}(v)},\ \alpha_v\bigr),
+$$
+
+where $W_v$ is a wiring skeleton, $\operatorname{ch}(v) \subseteq V_{k+1}$ is a finite set of child cells, $B_{v,c}$ is the contract assigned to child $c$ at its interface, and $\alpha_v$ is the parent abstraction map. The children of the cells at layer $k$ partition $V_{k+1}$, and every cell at layer $k < L$ has at least one child. A leaf is a cell at layer $L$; its decomposition record is a realization record. A cell that is already executable at layer $k$ is represented by a trivial decomposition into a single child at layer $k+1$ with the same machine, repeated until layer $L$. Declaring a contract is a design decision and is recorded as a selection in $D_k$; the support links of the next layer reference it through $S_k$.
+
+At $k = L$, $\chi_L(\ell)$ is a program $P_\ell$ together with an execution semantics for the leaf $\ell$.
+
+**$E_k$ — evidence.** A finite map from obligation keys to evidence records. An evidence record carries the exact obligation, the method, the claim established, the result, the scope, and the artifact. Section 4.5 defines the validity condition. The evidence stratum is separate from the intent stratum: an intent's activation does not depend on whether its evidence exists or passes.
+
+### 3.2 Active intents and the support recurrence
+
+Let $S_m$ be the set of selection propositions of the decisions accepted at layer $m$. The **active intents** are computed top-down:
+
+$$
+A_0 = I_0^{\mathrm{root}},
+$$
+
+$$
+A_k
+=
+\Bigl\{\, c \in I_k \;\Big|\;
+\exists P \in J_k(c).\
+P \subseteq \bigcup_{m=0}^{k-1} \bigl(A_m \cup S_m\bigr)
+\,\Bigr\}
+\qquad (1 \le k \le L).
+$$
+
+The recurrence has no fixed point. Support is strictly earlier-layer, so a single forward pass settles every layer. It is deterministic for a fixed candidate and costs the number of intent records, support groups, and premise occurrences.
+
+The per-layer order is:
+
+1. compute $A_k$ from the lower layers;
+2. resolve the decisions $D_k$ against $A_k$ and the earlier selections, and check consistency;
+3. verify the layer's behavioral obligations;
+4. for $k < L$, declare the contracts that feed layer $k+1$, and record each declaration as a decision selection in $D_k$.
+
+**Lemma 2 (Evidence separation).** $A_k$ is a function of $(I, J, D, S)$ only. It does not mention $E_k$. Consequently, a failed, missing, or pending evidence record leaves every obligation it concerns active.
+
+**Proof.** The recurrence defining $A_k$ refers only to intent records, support groups, and decision selections. The evidence stratum $E_k$ does not occur in it. $\blacksquare$
+
+Lemma 2 is the anti-vacuity condition. If the gate defined the obligation set as "the intents whose evidence passes," a failed requirement would disappear before it was checked, and the remaining set would be vacuously satisfied. The separation makes failure visible and blocking.
+
+**Corollary (No vacuous acceptance).** A layer with an active, evidenced obligation whose evidence is absent or failing is not valid. The obligation remains in $A_k$ and is reported as unsatisfied.
+
+### 3.3 Decisions, selection, and consistency
+
+A decision is a provenance record, not a theorem. Its **provenance validity** is the prerequisite check:
+
+$$
+\operatorname{prem}(d)
+\subseteq
+\bigcup_{m \le k} A_m \cup \bigcup_{m < k} S_m
+$$
+
+for a decision at layer $k$. Its **behavioral validity** is checked separately: the machine or contract named by the selected option must satisfy the relevant behavioral obligations. The two checks are independent. A decision can be warranted while its chosen machine fails satisfaction; the gate catches the latter. A machine can satisfy its intents while the decision's rationale is stale; the gate catches the former.
+
+The set $S_k$ is the set of selection propositions of accepted decisions at layer $k$. A decision is accepted when:
+
+1. its prerequisites are available;
+2. its selection is consistent with the nogoods introduced at layers $\le k$ and with the selections of lower layers;
+3. it is not marked stale.
+
+The **consistency** condition is
+
+$$
+\forall n \in \bigcup_{m \le k} N_m.\quad n \not\subseteq \bigcup_{m \le k} S_m .
+$$
+
+A nogood whose selections span a later layer is not violated until those selections exist; the check at the later layer includes the earlier nogood. Because selection is explicit, there is no disjunctive closure to compute and no nonmonotonic inference to guard. A question with several acceptable options is represented by several decisions or by one decision with alternatives; exactly one selection is active. The rejected alternatives remain in the ledger, addressable by their reopening conditions, without entering the active semantics.
+
+**Staleness.** If an intent, contract, or decision $x$ changes, the decisions whose prerequisite closure contains $x$ are stale:
+
+$$
+\operatorname{stale}(x) = \{\, d \mid x \in \operatorname{prem}^*(d) \,\}.
+$$
+
+The prerequisite graph is acyclic because prerequisites are strictly earlier-layer or same-layer intents (not same-layer selections), so the reverse-reachable set is computed in linear time. A stale decision blocks publication of every layer in which it is a prerequisite of an active intent. Re-warranting it, or replacing it with a new decision and reopening its alternatives, is the repair.
+
+A **reopening predicate** fires independently of premise changes. It is evaluated against the current environment and version. The predicate keeps rejected alternatives alive as first-class objects: when the condition that motivated the rejection no longer holds, the decision is stale and the alternative is reconsidered.
+
+### 3.4 Intra-layer validity
+
+Before the validity conditions, define the executable behavior of a sub-development. For a leaf $\ell$, $\operatorname{Beh}_{\mathrm{exec}}(\ell) = \operatorname{beh}(P_\ell)$ under the declared execution semantics. For a decomposed cell $v$, let $C_v$ be the concrete wiring implementation and let $\operatorname{Beh}_{\mathrm{exec}}(v)$ be the set of observations $C_v$ produces when it runs with the executable sub-developments of $v$'s children under the declared substrate and scheduling semantics. The transformer $K_v$ is the abstraction of $C_v$: $\operatorname{Beh}_{\mathrm{exec}}(v)$ is the concrete object, and $K_v$ is its specification-level image. Observation maps are typed: $\operatorname{obs}_c$ maps a child execution to $\mathcal{O}_{X_c}$, $\alpha_c$ maps $\mathcal{O}_{X_c}$ to the contract interface, and $\operatorname{obs}_v$ maps a parent execution to $\mathcal{O}_{X_v}$; the maps compose through the refinement tree.
+
+$\mathcal{L}_k$ is **valid** when seven conditions hold.
+
+1. **Support well-formedness and ownership coverage.** Every active intent in $A_k$ has a support group whose references are available; the support links are acyclic; and the per-cell ownership sets cover the active set:
+   $$
+   \bigcup_{v \in V_k} A_k(v) = A_k,
+   $$
+   with each active intent owned by exactly one cell. An interaction-boundary label is explanatory metadata on the owning cell; it does not create an unchecked owner.
+2. **Decision resolution.** Every decision in $D_k$ is accepted, and the selections are consistent with all nogoods introduced at layers $\le k$ and with lower layers.
+3. **Satisfaction.** For every cell $v \in V_k$ and every active intent $c \in A_k(v)$, the evidence $E_k$ contains a valid record for
+   $$
+   \operatorname{beh}(M_v) \subseteq \llbracket c \rrbracket .
+   $$
+4. **Decomposition.** For every non-leaf cell $v \in V_k$ with $\chi_k(v) = (W_v, \operatorname{ch}(v), (B_{v,c})_c, \alpha_v)$, the evidence $E_k$ contains a valid record for
+   $$
+   K_v\bigl(\{\operatorname{beh}(B_{v,c})\}_{c \in \operatorname{ch}(v)}\bigr)
+   \subseteq
+   \operatorname{beh}(M_v),
+   $$
+   where $K_v$ is the transformer induced by $W_v$ and $\alpha_v$. Here $\operatorname{beh}(B_{v,c})$ is the set of observations the contract permits; a contract is a specification and is read as a behavior set.
+5. **Executable realization.** For a decomposed cell $v$, the evidence $E_k$ contains a **wiring adequacy certificate** for the concrete wiring $C_v$:
+   $$
+   \forall (Q_c)_{c \in \operatorname{ch}(v)}.\
+   \Bigl(\forall c.\ Q_c \text{ is an admissible child behavior for } X_c,\Gamma_c\Bigr)
+   \Rightarrow
+   \operatorname{Beh}(C_v[Q_c]) \subseteq K_v\bigl(\{\alpha_c(Q_c)\}_{c}\bigr).
+   $$
+   The instance obligation is the specialization $Q_c = \operatorname{Beh}_{\mathrm{exec}}(c)$:
+   $$
+   \operatorname{Beh}_{\mathrm{exec}}(v) \subseteq K_v\bigl(\{\alpha_c(\operatorname{Beh}_{\mathrm{exec}}(c))\}_{c \in \operatorname{ch}(v)}\bigr),
+   $$
+   derived by application of the universal certificate, not by a separate solver. Admissible here means the child behavior satisfies the interface typing, input-receptiveness, and profile conditions for $X_c,\Gamma_c$; condition 6 certifies that the executable child behaviors are admissible. This is the operational-soundness and interaction-completeness condition: the concrete wiring produces only observations admitted by its transformer and its children. For a leaf $\ell \in V_L$, the evidence $E_L$ contains a valid record for
+   $$
+   \operatorname{Beh}_{\mathrm{exec}}(\ell) = \operatorname{beh}(P_\ell) \subseteq \operatorname{beh}(M_\ell),
+   $$
+   and the leaf's initial state set is nonempty under the declared initialization.
+6. **Profile admissibility.** The selected semantic profile's conditions hold:
+   - *Initialization.* Every initial state is in the invariant, and the initial state set is nonempty.
+   - *Input receptiveness.* If a contract permits an input at a related state, the child accepts it.
+   - *Progress.* For a liveness claim only, the required maximal fair executions are preserved under the declared fairness and enabling conditions.
+   These conditions are part of validity, not background assumptions. They block the empty-behavior and request-refusal witnesses.
+7. **Protected obligation preservation.** Every protected obligation active in the previous version remains active with the same semantic content, unless an authorized disposition records its retirement or weakening. Section 3.8 states the rule.
+
+Conditions 5 and 6 are the executable premises that the soundness theorem consumes. Condition 7 is the anti-erasure premise that the publication gate consumes.
+
+### 3.5 Inter-layer refinement
+
+For $k < L$, the inter-layer operator is
+
+$$
+\mathcal{L}_k \Rrightarrow \mathcal{L}_{k+1}
+\iff
+\forall v \in V_k.\ \forall c \in \operatorname{ch}(v).\
+E_{k+1} \text{ contains a valid record for }
+\operatorname{beh}(M_c) \subseteq \operatorname{beh}(B_{v,c})
+\text{ under } \alpha_c .
+$$
+
+The operator compares a child implementation with the contract its parent declared. It does not compare the new child with the old child; the contract is the complete interface. This is the ownership discipline in action. The operator's conclusion is about the child machine; condition 5 carries it to the executable sub-development.
+
+A **stratified development** of depth $L$ is a sequence $(\mathcal{L}_0, \ldots, \mathcal{L}_L)$ satisfying $\mathcal{L}_k \Rrightarrow \mathcal{L}_{k+1}$ for every $k < L$. It is **valid** when every layer is intra-layer valid and every adjacent pair satisfies the operator. It is **complete** when every layer is resolved (no pending decisions) and every required realization obligation is discharged.
+
+### 3.6 Stratified soundness
+
+**Theorem 1 (Stratified soundness).** Let $(\mathcal{L}_0, \ldots, \mathcal{L}_L)$ be a stratified development. Suppose:
+
+- (A1) every layer is intra-layer valid (conditions 1–7 of §3.4);
+- (A2) $\mathcal{L}_k \Rrightarrow \mathcal{L}_{k+1}$ for every $k < L$;
+- (A3) the observation maps are typed and compose through the refinement tree.
+
+Then for every $k$ and every cell $v \in V_k$, $\operatorname{Beh}_{\mathrm{exec}}(v) \subseteq \operatorname{beh}(M_v)$, and for every active intent $c \in A_k(v)$, $\operatorname{Beh}_{\mathrm{exec}}(v) \subseteq \llbracket c \rrbracket$. In particular,
+
+$$
+\operatorname{Beh}_{\mathrm{exec}}(v_0)
+\subseteq
+\Phi_0(v_0)
+=
+\bigcap_{c \in A_0(v_0)} \llbracket c \rrbracket,
+$$
+
+the semantic conjunction at the identified root $v_0$, not the syntactic set $A_0$.
+
+**Proof.** Induct on $L - k$.
+
+*Base $k = L$.* Condition 5 gives $\operatorname{Beh}_{\mathrm{exec}}(\ell) = \operatorname{beh}(P_\ell) \subseteq \operatorname{beh}(M_\ell)$ and the nonempty initial state condition. Condition 3 gives $\operatorname{beh}(M_\ell) \subseteq \llbracket c \rrbracket$ for every active intent $c$ assigned to $\ell$.
+
+*Step.* Assume the claim for every child $c \in \operatorname{ch}(v) \subseteq V_{k+1}$, and write $B_c = \operatorname{Beh}_{\mathrm{exec}}(c)$. Let $B_{v,c}$ be the contract declared by $v$ for $c$. Condition 5 gives the universal wiring-adequacy certificate; instantiating it at $Q_c = B_c$, which is admissible by condition 6, gives the operational inclusion
+
+$$
+\operatorname{Beh}_{\mathrm{exec}}(v)
+\subseteq
+K_v\bigl(\{\alpha_c(B_c)\}_{c}\bigr). \qquad (1)
+$$
+
+The induction hypothesis gives $B_c \subseteq \operatorname{beh}(M_c)$, hence $\alpha_c(B_c) \subseteq \alpha_c(\operatorname{beh}(M_c))$. Monotonicity of $K_v$ (Lemma 1) gives
+
+$$
+K_v\bigl(\{\alpha_c(B_c)\}_{c}\bigr)
+\subseteq
+K_v\bigl(\{\alpha_c(\operatorname{beh}(M_c))\}_{c}\bigr). \qquad (2)
+$$
+
+The inter-layer operator (A2) gives $\alpha_c(\operatorname{beh}(M_c)) \subseteq \operatorname{beh}(B_{v,c})$. Monotonicity gives
+
+$$
+K_v\bigl(\{\alpha_c(\operatorname{beh}(M_c))\}_{c}\bigr)
+\subseteq
+K_v\bigl(\{\operatorname{beh}(B_{v,c})\}_{c}\bigr). \qquad (3)
+$$
+
+Condition 4 gives
+
+$$
+K_v\bigl(\{\operatorname{beh}(B_{v,c})\}_{c}\bigr)
+\subseteq
+\operatorname{beh}(M_v). \qquad (4)
+$$
+
+Chaining (1)–(4) yields $\operatorname{Beh}_{\mathrm{exec}}(v) \subseteq \operatorname{beh}(M_v)$. Condition 3 gives $\operatorname{beh}(M_v) \subseteq \llbracket c \rrbracket$ for every active intent $c$ assigned to $v$. Condition 6 supplies the profile's initialization, input, and progress conditions, so no step uses an empty behavior or a refused input to satisfy an obligation. The root case $k = 0$ gives $\operatorname{Beh}_{\mathrm{exec}}(v_0) \subseteq \Phi_0(v_0)$. $\blacksquare$
+
+The proof is the whole spine. It uses executable realization, monotonicity, child refinement, decomposition, and transitivity. The stratification enters in the induction: every child's proof is a separate premise, and the parent's decomposition is checked against contracts rather than against the concrete product of child states. The operational counterexample — identity $K$, child $\{ok\}$, parent $\{ok\}$, actual wiring $\{bad\}$ — is excluded by condition 5, because $\{bad\} \subseteq \{ok\}$ is false. The empty-initial-state counterexample is excluded by condition 6.
+
+### 3.7 Layer soundness and inspection
+
+**Corollary 1 (Inspection is sound).** For every $k$ and $v \in V_k$, $\operatorname{Beh}_{\mathrm{exec}}(v) \subseteq \operatorname{beh}(M_v) \subseteq \Phi_k(v)$. The inspection direction is: every executable behavior maps under the abstraction to a behavior permitted by the layer's machines, and every universal obligation displayed at layer $k$ transfers to the code. The converse does not hold: a layer may deliberately admit abstract behavior that the current implementation does not realize. For example, $\operatorname{beh}(\text{code}) = \{a\}$ and $\operatorname{beh}(\text{model}) = \{a,b\}$ satisfy refinement, yet $b$ is abstractly permitted and concretely impossible. The layer is an abstraction, not a claim of behavioral equivalence.
+
+The **inspection view** of layer $k$ contains:
+
+- the active intents $A_k$, with their support links and authority tags;
+- the decision ledger $D_k$, with questions, selections, rejected alternatives, and reopening conditions;
+- the cells $V_k$ and their machines $M_v$;
+- the incoming contracts $B_{\mathrm{par}(v),v}$ that each cell must refine;
+- the outgoing decomposition $\chi_k(v)$ that each non-leaf cell declares;
+- the evidence status $E_k$: pass, fail, unresolved, pending, missing, and the scope of each method.
+
+A human inspecting layer $k$ sees what the system does, what it must do, why it is built this way, and that the view is a sound abstraction. They read code only to audit a specific leaf whose contract they already understand.
+
+### 3.8 Protected obligation preservation
+
+Define the **effective protected inventory** of a version $G$:
+
+$$
+\operatorname{Prot}(G) = \bigl\{(\operatorname{id}(c), \llbracket c \rrbracket, \operatorname{owner}(c), \operatorname{scope}(c)) : c \text{ is active in } G \text{ and } \operatorname{authority}(c) \in \{\mathrm{root}, \mathrm{protected}\}\bigr\}.
+$$
+
+A candidate $G'$ **preserves** $G$ when for every $p \in \operatorname{Prot}(G)$, either $p$ is active in $G'$ with the same semantic content, or an authorized disposition $d \in \mathcal{A}_{G'}$ records $p$, the authorization, the reason, and the affected decisions. A support edit, ownership change, selection change, or interpretation change that removes $p$ without such a disposition is rejected by validity condition 7. Ownership is total, so $\operatorname{Prot}(G)$ and the per-cell satisfaction sets range over the same active obligations; a protected interaction intent is assigned to the cell that owns the interaction boundary and is checked there.
+
+The support-only witness: a protected intent $c$ at layer 1 has $J_1(c) = \{\{s\}\}$ and $s$ is accepted. The candidate changes only $J_1(c)$ to $\emptyset$. The identifier, predicate, authority tag, and selection are unchanged, but $A_1$ loses $c$, so its satisfaction evidence is no longer requested. Condition 7 rejects the candidate; only an authorized disposition can retire $c$. Evidence failure does not deactivate an intent (Lemma 2), and a support or ownership edit does not deactivate a protected intent without a disposition (condition 7).
+
+---
+
+## 4. Verification Obligations
+
+### 4.1 Satisfaction
+
+For a finite machine $M_v$ and a specification $\Phi$, satisfaction is checked by exhaustive state-space exploration or by a certified invariant. For an infinite machine, it is checked by a theorem, a certified abstraction, or a bounded argument whose scope is recorded. The obligation is exactly
+
+$$
+\operatorname{beh}(M_v) \subseteq \Phi .
+$$
+
+A test is not, by itself, evidence for this universal inclusion. It is evidence for a bounded claim: no violation in the tested sample, or no violation within a bound. The evidence record must state the claim; the gate checks that the claim covers the obligation. A universal obligation is not discharged by a sampled test. A bounded intent can be discharged by a bounded check, provided the intent is stated with the same bound.
+
+### 4.2 Decomposition and connector admissibility
+
+The decomposition obligation is
+
+$$
+K_v\bigl(\{\operatorname{beh}(B_{v,c})\}_{c}\bigr)
+\subseteq
+\operatorname{beh}(M_v).
+$$
+
+It is checked at the parent layer, against the abstract contracts, not against the concrete children. The connector's admissibility has four parts:
+
+1. **Monotonicity.** Lemma 1 for the trajectory model; definitional for any transformer presented as a monotone map.
+2. **Operational soundness.** The concrete wiring's observations are contained in the transformer's output. Routing, synchronization, initialization, and shared-resource behavior are covered by the trajectory model.
+3. **Interaction ownership.** Every inter-child synchronization action and every piece of shared state is owned by the wiring or by a declared substrate service. Children have pairwise disjoint private state. A stateful coordinator is a child cell with its own machine and eventual realization, not an unimplemented oracle inside the connector.
+4. **Observation preservation under reduction.** When concrete interleavings are replaced by the transformer's compositional abstraction, the reduction preserves the observations of the profile. Transaction reduction and linearizability are proof methods for this condition when they apply; they are not mandatory ceremony for sequential components.
+
+The wiring-adequacy certificate (parts 1–2) is what the soundness proof consumes; it is validity condition 5, and profile admissibility is condition 6. A layer without them is not valid, and Theorem 1 does not apply. The last two parts are what make the proof applicable to a real concurrent implementation. A connector that fails part 3 or 4 is outside the calculus until the missing owner or the reduction proof is supplied.
+
+### 4.3 Child refinement
+
+A child refinement obligation is
+
+$$
+\operatorname{beh}(M_c) \subseteq_\alpha \operatorname{beh}(B_{v,c}).
+$$
+
+For finite trace inclusion, an **inductive simulation witness** establishes it:
+
+- an invariant $I_c \subseteq S_{M_c}$;
+- a relation $R_c \subseteq S_{M_c} \times S_{B_{v,c}}$;
+- an abstraction map $\lambda_c$ from child actions to contract actions or silent steps.
+
+The conditions are:
+
+1. **Initiation.** Every initial child state is in $I_c$ and is related to an initial contract state.
+2. **Consecution.** $I_c$ is closed under the child's transitions.
+3. **Step simulation.** For $(s, t) \in R_c$ and $s \xrightarrow{\sigma} s'$: if $\lambda_c(\sigma) = \epsilon$, then $(s', t) \in R_c$; otherwise there is $t'$ with $t \xrightarrow{\lambda_c(\sigma)} t'$ and $(s', t') \in R_c$.
+4. **Input receptiveness.** Every contract input enabled at $t$ is enabled by some child input in $\lambda_c^{-1}$ at $s$.
+5. **Silent convergence.** For a liveness profile, a well-founded rank strictly decreases on silent steps, preventing infinite internal stuttering.
+
+**Lemma 3 (Finite-trace simulation).** Conditions 1–3 imply $\lambda_c(\operatorname{tr}(M_c)) \subseteq \operatorname{tr}(B_{v,c})$.
+
+**Proof.** Induct on the length of a child execution. Initiation relates the initial states. Consecution keeps the invariant. A silent step keeps the contract state; a visible step appends the matched contract transition. Every finite prefix therefore has a matching contract execution. $\blacksquare$
+
+For state-labeled properties, related states agree on the abstract valuations and silent steps preserve them. For liveness, the witness additionally preserves maximality and fairness, and validity condition 6 supplies the progress rank. For open inputs, simulation condition 4 blocks the trivial refusal strategy.
+
+### 4.4 Realization
+
+At layer $L$, each leaf has a program $P_\ell$ and an execution semantics. The obligation is
+
+$$
+\operatorname{beh}(P_\ell) \subseteq \operatorname{beh}(M_\ell)
+$$
+
+under the declared semantics and environment assumptions. The leaf machine's transitions are deterministic conditional on their explicit inputs; residual environment choices are explicit inputs or explicit semantic nondeterminism. The substrate contract names what the runtime guarantees: an atomic write, a flush completion, a message delivery, a clock granularity. The realization obligation is where those guarantees enter the proof. For a decomposed cell, realization is the universal wiring-adequacy certificate of §3.4: $\forall Q_c.\ \operatorname{Beh}(C_v[Q_c]) \subseteq K_v(\{\alpha_c(Q_c)\}_c)$ over admissible child behaviors; the instance $\operatorname{Beh}_{\mathrm{exec}}(v) \subseteq K_v(\{\alpha_c(\operatorname{Beh}_{\mathrm{exec}}(c))\}_c)$ follows by application. For a leaf, it is the program-to-machine inclusion above.
+
+### 4.5 Evidence discipline
+
+An evidence record for an obligation $o$ is a tuple
+
+$$
+e = (o,\ \mathrm{method},\ \mathrm{claim},\ \mathrm{result},\ \mathrm{scope},\ \mathrm{artifact}).
+$$
+
+It is **valid** for $o$ when:
+
+1. $\mathrm{claim}$ is at least as strong as $o$;
+2. $\mathrm{method}$ is sound for $\mathrm{claim}$ under $\mathrm{scope}$;
+3. $\mathrm{result}$ is pass.
+
+The result field is one of $\{\mathrm{pass}, \mathrm{fail}, \mathrm{unresolved}, \mathrm{pending}\}$. Only `pass` discharges an obligation; `unresolved` and `pending` are not passes and cannot enter the Verified outcome.
+
+The method determines the claim:
+
+| Method | Claim it can establish | What it cannot establish |
 |---|---|---|
-| A: Whole-candidate cold evaluation | Re-evaluates all active requests on each candidate; minimal adapter complexity | Repeated execution of expensive checks |
-| B: Certified incremental evaluation | Reuses prior outcomes via complete projections $p_v$ and interface certificates (Theorem 3) | Requires sound read-set tracking and provider conformance proofs |
-| C: Restricted derivation DSL | Constrains component models so code generation or translation validation discharges leaf realization | Higher upfront modeling cost and restricted language expressiveness |
+| Proof derivation | the exact obligation | nothing beyond the logic's soundness |
+| Exhaustive finite model check | the obligation for the modeled machine | adequacy of the model to the code |
+| Bounded model check | the obligation up to the bound | the unbounded obligation |
+| Property-based test | no violation in the sampled domain | a universal inclusion |
+| Runtime monitor | no violation in the observed run | future or unobserved behavior |
+| Translation validation | the specific program-to-machine relation | unrelated properties |
 
-### 6.4 Finite counterexamples and verification plan
+The scope records the observation profile, machine class, environment assumptions, and any bound. A result is meaningful only within its scope.
 
-Twenty-one machine-checked finite witness tests accompany this report in `jirl-cold-replay.jsonl` (9 records), `jirl-convergence-replay.jsonl` (4 records), and `jirl-paper-probes.jsonl` (8 records). Each witness constructs a concrete finite instance and verifies the corresponding proposition or counterexample:
+### 4.6 Evidence separation and the three-gate structure
 
-* **Support and consistency witnesses (`P1`–`P4`, `P10`–`P13`, `JIRL-P14`–`JIRL-P16`):** nonmonotonicity and missing least fixed point of the locally guarded operator $T_R$ (Proposition 1); order-independent linear-time convergence of $F_{\mathcal M}$ and $F_{\mathcal M, \mathcal E}$ in the presence of multiple fixed points and cycles (Theorem 1); single-proof-tree nogood failure versus full-closure consistency (Proposition 2); downward-closed consistency and union consistency of minimal labels (Theorem 2); exponential $2^n$ minimal-label growth for $n \in \{1,\dots,7\}$ yielding $128$ minimal labels at $n=7$ (Proposition 3); checked zero-premise rules; and defeated scoped-absence roots.
-* **Persistence, composition, and incremental reuse witnesses (`P5`–`P9`, `JIRL-P17`–`JIRL-P21`):** acyclic reference construction and topological stratification (Lemma 1); decision selection invariants (§2.3); read-skew invariant violations and cycle creation under per-lineage newest selection (Proposition 6); safe terminal states in interface automata compatibility (§4.3); failure of artifact-digest and unverified interface-digest caching, sensitivity of consumers to unprojected provider behaviors (Proposition 5); empty-query collection dependencies; and exact agreement between cold and projection-cached incremental evaluation across 16 test configurations (Theorem 3).
+Every layer has three independent gates:
 
-Prospective implementation verification extends these finite witnesses with a property-based differential test suite that generates random finite materials (including zero-premise rules, support cycles, alternative derivations, empty nogoods, and mutating query inventories) and checks: (1) counter-worklist closure against exhaustive least-closed-set enumeration, (2) computed minimal labels against $2^A$ subset dynamic programming, (3) incremental evaluation verdicts against cold evaluation on identical inputs, and (4) linearizable expected-head publication under simulated concurrent writers and lost acknowledgements.
+- **Provenance gate.** Every decision is accepted, its prerequisites hold, its selection is consistent, and no load-bearing decision is stale.
+- **Behavioral gate.** Every active intent has valid satisfaction evidence; every decomposition has valid evidence; every child has valid refinement evidence; every executable cell has valid realization evidence (wiring adequacy for a non-leaf cell, program-to-machine for a leaf); the profile's initialization, input, and (where claimed) progress conditions hold.
+- **Preservation gate.** Every protected obligation in the previous version's effective inventory remains active with the same semantic content, or an authorized disposition records its retirement or weakening. A support, ownership, selection, or interpretation edit that deactivates a protected obligation is rejected.
 
-### 6.5 Four-arm discriminating empirical protocol
+The separation matters. A failing behavioral check does not remove the intent from $A_k$ (Lemma 2). A failing provenance check does not silently delete a machine. A support-only edit cannot deactivate a protected obligation without a disposition (condition 7). All failures are reported with their obligations, their evidence status, and the relevant witnesses. The version is not published until all three gates pass.
 
-Testing whether JIRL's structural invariants yield net engineering value requires comparing four capability bundles over shared software-evolution histories:
+### 4.7 What the gate guarantees
 
-| Arm | Capability bundle |
+The gate guarantees that the published executable system refines the active root intents under the declared observation profile and substrate semantics. The guarantee is conditional on validity conditions 5 and 6 (executable realization and profile admissibility) and on the preservation condition 7, and it is relative to:
+
+- the admitted root intents and their authority;
+- the semantic profile and the environment assumptions;
+- the soundness of the evidence checkers;
+- the connector admissibility proofs;
+- the declared execution semantics of the leaf programs.
+
+These are the theorem's hypotheses, not disclaimers. The next section makes the composition conditions explicit.
+
+---
+
+## 5. Decomposition and Interaction
+
+### 5.1 Contracts are relational
+
+A contract that constrains each child separately cannot express a correlation between children. The canonical witness is a parent that admits only the diagonal outcomes.
+
+**Proposition 1 (Coordinate projections erase correlation).** Let the parent admit the outcome set $R = \{(0,0), (1,1)\}$ over outputs $(x,y)$. The coordinate projections are $\pi_1(R) = \{0,1\}$ and $\pi_2(R) = \{0,1\}$. Two children that independently refine the projections can jointly emit $(0,1) \notin R$.
+
+**Proof.** $\{0,1\} \times \{0,1\}$ contains $(0,1)$, which is not in $R$. $\blacksquare$
+
+The remedy is one of two moves: make the contract relational (a relation between child observations and shared connector state), or hoist the correlation into the connector's wiring. The calculus supports both. The point is that the parent layer must own the correlation; it cannot be pushed into independent child proofs.
+
+### 5.2 Sibling independence
+
+**Theorem 2 (Sibling independence).** Fix a parent cell $v \in V_k$ with children $\operatorname{ch}(v) \subseteq V_{k+1}$, contracts $(B_{v,c})_c$, wiring $W_v$, and parent machine $M_v$. Suppose:
+
+1. **Child refinement.** For every $c$, $\operatorname{beh}(M_c) \subseteq_{\alpha_c} \operatorname{beh}(B_{v,c})$, with input receptiveness and progress preservation under the profile.
+2. **Connector monotonicity.** The transformer $K_v$ induced by $W_v$ is monotone.
+3. **Decomposition.** $K_v(\{\operatorname{beh}(B_{v,c})\}_c) \subseteq \operatorname{beh}(M_v)$.
+4. **Applicability.** The wiring's operational realization is sound for $K_v$; interaction ownership and reduction preservation hold as required by the profile.
+
+Then
+
+$$
+K_v\bigl(\{\alpha_c(\operatorname{beh}(M_c))\}_c\bigr) \subseteq \operatorname{beh}(M_v),
+$$
+
+without constructing the concrete sibling product $\prod_c S_{M_c}$.
+
+**Proof.** Apply the abstraction maps to the child refinements, then apply monotonicity to get $K_v(\{\alpha_c(\operatorname{beh}(M_c))\}_c) \subseteq K_v(\{\operatorname{beh}(B_{v,c})\}_c)$, and compose with the decomposition. $\blacksquare$
+
+The theorem is the step case of Theorem 1, stated separately because it is the engineering claim. The children are verified against their contracts, never against each other. The cost of the parent check is the abstract boundary, not the concrete product.
+
+### 5.3 Executable closure
+
+A connector that performs stateful coordination cannot remain an unimplemented mathematical object. The calculus requires:
+
+- the wiring $W_v$ owns only the specified composition mechanism: routing, synchronizing, interleaving, hiding;
+- any stateful coordinator is a child cell with its own machine, contract, and eventual realization;
+- any custom router, scheduler, or runtime adapter introduced by the implementation receives its own realization obligation or becomes an explicit substrate assumption;
+- no action disappears between the mathematical composition and the executable delivery.
+
+This rule closes the gap that otherwise lets an agent write a beautiful abstract connector and never implement it. The coordinator is refined like everything else.
+
+### 5.4 Shared services
+
+A service used by several branches is declared at the lowest common ancestor $u$ as an abstract atomic contract $O^{\mathrm{abs}}$ in the ambient context. Clients invoke it atomically without widening the intermediate interfaces. The service is implemented once, as a separate subtree, and proved to refine $O^{\mathrm{abs}}$: linearizability for safety, a progress property for liveness. This is a factoring rule, not a new judgment. A stateless both-mover service (logging, telemetry) is an admissible connector with trivial state; its certificates establish the required commutation and progress.
+
+### 5.5 Contract factoring and capacity
+
+A contract boundary can move history into the child and keep the connector small. With $m$ idempotent resource bits and the invariant "not all $m$ are held," a naive joint recognizer needs $2^m$ states. With per-child two-state contracts that emit signed changes only on a genuine bit change, a connector that counts holders needs $m+1$ states. The gain is architectural: the connector's state is small, and the history lives in the children. The bound is not a universal polynomial claim; the abstract boundary can still contain a product of contract states when the architecture requires it. The point is to choose the boundary so that the product is small.
+
+### 5.6 Applicability conditions
+
+The sibling-independence theorem is only as strong as its applicability conditions. The paper states them in the main text because they are the load-bearing assumptions:
+
+- **Interaction ownership.** Every shared interaction has an owning boundary; children have disjoint private state.
+- **Operational soundness.** The wiring model covers actual routing, synchronization, initialization, and shared-resource behavior.
+- **Input and progress.** The profile's input receptiveness and progress obligations are preserved by the child refinement.
+- **Reduction preservation.** When interleavings are reduced, the reduction preserves the observations of the profile.
+
+A connector that fails one of these is outside the calculus. The failure is a proof obligation, not a silent assumption.
+
+---
+
+## 6. The Development Protocol
+
+### 6.1 The five gates
+
+The protocol is the operational reading of validity. An agent may publish a version only when all five gates pass.
+
+**G1 — Read the layer (process duty).** Before proposing a change at layer $k$, the agent reads the layer's active intents, support links, decisions, cells, incoming contracts, outgoing decomposition, and evidence status. This is a process obligation on the agent; G2–G5 are checked by the gate.
+
+**G2 — No abstraction skip.** A machine at layer $k+1$ is introduced only as a child of a contract already declared in some $\chi_k(v)$. The agent cannot write layer $k+1$ code without first fixing the interface it must satisfy. This is the direct block on the wide abstraction leap.
+
+**G3 — Evidence required.** Acceptance of a cell requires valid satisfaction evidence for every active intent assigned to it and valid executable-realization evidence: for a non-leaf cell, the universal wiring-adequacy certificate of condition 5; for a leaf, the program-to-machine inclusion. A non-leaf cell also requires valid decomposition evidence. Acceptance of a child requires valid refinement evidence. A test is evidence only for the claim it can establish. A weakened test weakens the claim, not the obligation; the universal obligation remains active and unsatisfied.
+
+**G4 — No silent specification weakening.** Root and protected intents and contracts can be changed only through an authorized revision that creates a new version and reopens the dependent decisions. The agent may propose a revision; it cannot apply one as part of a code change. A support, ownership, selection, or interpretation edit that deactivates a protected obligation counts as a specification weakening and requires an authorized disposition. The authorization record is part of the version.
+
+**G5 — Atomic publication.** A version is published only when every obligation in the affected dependency cone has valid pass evidence. Partial layers are not publishable. Missing, unresolved, or pending evidence is not a pass, and a failed local verification cannot be hidden by a successful build elsewhere.
+
+### 6.2 The authoring cycle
+
+The agent's per-layer cycle is:
+
+1. **Read.** Load the layer's inspection view and the incoming contracts.
+2. **Decide.** For each open design question, record a decision with its prerequisites, alternatives, rationale, and reopening condition. A decision that changes a protected item requires an authorized revision.
+3. **Model.** Propose the layer's cells and their machines. Each machine must satisfy the active intents assigned to its cell.
+4. **Decompose.** For each non-leaf cell, declare the wiring and the child contracts, and discharge the decomposition and wiring-adequacy obligations.
+5. **Assign.** Hand each child contract to the next layer's development. The child may be developed independently within its contract.
+6. **Substitute.** When a child is complete, substitute its refinement proof into the parent's decomposition. Close the parent only when all children are discharged.
+
+A locally checked design with unresolved descendants remains a **development candidate**. The completed-system gate quantifies over all required cells, decompositions, and executable artifacts.
+
+### 6.3 What the agent may and may not change
+
+| Artifact | Agent may | Agent may not |
+|---|---|---|
+| Delegated intent | refine, strengthen, or add a child intent | delete or deactivate it via a support/ownership edit without an authorized revision |
+| Protected intent | propose a revision with rationale and reopening | apply the revision, or deactivate it via a support/ownership edit, without an authorized disposition |
+| Root intent | implement it | silently weaken, reinterpret, or deactivate it |
+| Contract | refine the child implementation; propose a contract revision | change the contract to make a failing child pass |
+| Decision | add, re-warrant, or reopen with rationale | erase the alternatives or the rationale |
+| Machine | choose any implementation within the contract | declare a contract that the parent decomposition does not support |
+| Evidence | add evidence for the exact obligation | substitute a weaker claim for a stronger obligation |
+
+### 6.4 Test weakening, intent revision, and authority
+
+The test-weakening failure is blocked at the evidence layer. A test is a decision procedure for a bounded or sampled claim. It cannot discharge a universal inclusion unless it is exhaustive for the relevant finite domain. If the agent deletes an assertion, the remaining test establishes a weaker claim; the universal obligation is still active, and the gate reports it as unsatisfied. The only way to remove the obligation is to change its intent, which requires an authorized revision and reopens the dependent decisions. A support, ownership, selection, or interpretation edit that removes a protected obligation is a removal even when the predicate bytes are unchanged; it requires the same authorized disposition.
+
+The authority tags make this concrete:
+
+- **Root intents** are admitted by the owner at version creation.
+- **Protected intents and contracts** require an explicit authorization record to change.
+- **Delegated intents** may be refined by the agent within the protected boundary.
+
+The authorization record is not a separate governance layer. It is a field of the version, checked by the same gate.
+
+### 6.5 A transcript of a caught error
+
+1. The requirement says: acknowledge a request only after its result is durable.
+2. The agent writes a store that emits `committed` after `write` returns.
+3. The refinement check for the store contract returns the trace `append, committed` with no `flush_ok`/`fsync`.
+4. The evidence record is fail. The store contract remains active.
+5. The agent either adds the flush before `committed` (downward repair at the code layer) or, if the substrate cannot support the required durability, introduces a supported flush protocol and implements it, or obtains an authorized revision of the substrate/requirement premise and reopens the store decision.
+6. The version is published only after the new evidence passes and the reopen path is recorded.
+
+The next section gives the full example.
+
+---
+
+## 7. Persistent Versions and Evolution
+
+### 7.1 Versions
+
+A **version** is an immutable snapshot
+
+$$
+G_t = \bigl(\mathcal{L}_0^{(t)}, \ldots, \mathcal{L}_L^{(t)},\ \mathcal{A}_t\bigr),
+$$
+
+where $\mathcal{A}_t$ is the authorization record for protected revisions. The snapshot is identified by the hash of its canonical encoding. Publication is a compare-and-swap on the head pointer: a candidate $G_{t+1}$ is installed only if the head still identifies $G_t$. The persistent store — a content-addressed DAG, a Merkle trie, or a plain immutable map — is an implementation choice. The mathematical content of persistence is the locality of obligation keys.
+
+### 7.2 Obligation keys
+
+Each obligation has a key that contains every semantic input to it and nothing else:
+
+$$
+\begin{aligned}
+\kappa_{\mathrm{Wire}}(v) &= h\bigl(\text{Wire},\ C_v,\ K_v,\ \alpha_v,\ (\alpha_c)_c,\ \Gamma_v,\ (\Gamma_c)_c\bigr), \\
+\kappa_{\mathrm{Sat}}(v, c) &= h\bigl(\text{Sat},\ M_v,\ \llbracket c \rrbracket,\ \Gamma_v\bigr), \\
+\kappa_{\mathrm{Dec}}(v) &= h\bigl(\text{Dec},\ W_v,\ (B_{v,c})_c,\ M_v,\ \alpha_v,\ \Gamma_v\bigr), \\
+\kappa_{\mathrm{Ref}}(c) &= h\bigl(\text{Ref},\ M_c,\ B_{\mathrm{par}(c),c},\ \alpha_c,\ \Gamma_c\bigr), \\
+\kappa_{\mathrm{Impl}}(\ell) &= h\bigl(\text{Impl},\ P_\ell,\ M_\ell,\ \Gamma_\ell\bigr).
+\end{aligned}
+$$
+
+The key never contains a storage pointer, a subtree hash, or a child implementation that is not a semantic input. Two equal keys denote the same obligation proposition; collisions are resolved by exact comparison of the encoded arguments.
+
+### 7.3 Cutoff by proof substitution
+
+**Theorem 3 (Cutoff).** Let $G_t$ be a valid version. Replace the sub-development rooted at a child $c \in V_{k+1}$ with a new sub-development. Keep fixed the contract $B_{v,c}$, the wiring $W_v$, the parent machine $M_v$, the parent's active intents, the parent abstraction map $\alpha_v$, the child abstraction maps $(\alpha_c)_c$, the child contexts $(\Gamma_c)_c$, and every sibling. Suppose the new child sub-development is valid and satisfies
+
+$$
+\operatorname{beh}(M'_c) \subseteq \operatorname{beh}(B_{v,c})
+$$
+
+under the same profile and abstraction map $\alpha_c$. Then every obligation at layers $\le k$ whose key does not mention the changed objects has an unchanged key and retains its evidence. In particular:
+
+- $\kappa_{\mathrm{Wire}}(v)$, $\kappa_{\mathrm{Dec}}(v)$, and $\kappa_{\mathrm{Sat}}(v, c')$ are unchanged for every parent intent $c'$;
+- every sibling $\kappa_{\mathrm{Ref}}(c')$ is unchanged;
+- the changed keys are confined to the replaced sub-development: $\kappa_{\mathrm{Impl}}(\ell)$ for a changed leaf, and $\kappa_{\mathrm{Ref}}(c)$ if $M'_c$ or $\alpha_c$ changed. If the child machine and its contract are fixed, $\kappa_{\mathrm{Ref}}(c)$ is unchanged as well.
+
+The universal wiring-adequacy certificate is keyed by $(C_v,K_v,\alpha_v,(\alpha_c)_c,\Gamma_v,(\Gamma_c)_c)$ and does not mention the child tuple. The instance $\operatorname{Beh}_{\mathrm{exec}}(v) \subseteq K_v(\{\alpha_c(\operatorname{Beh}_{\mathrm{exec}}(c))\}_c)$ is re-derived by applying the unchanged certificate to the new child behaviors; no ancestor solver is re-run. If a child interface map changes, the parent's wiring-adequacy key changes and the applicable wiring evidence must be re-established; the zero-ancestor-solver cutoff assumes the family $(\alpha_c)_c$ is fixed. If a wiring cannot establish the universal certificate, its evidence is instance-specific; the cutoff claim does not apply to that ancestor, and the affected operational obligation is revalidated.
+
+**Proof.** The keys are functions of their listed arguments. The parent keys list $M_v$, $W_v$, $B_{v,c}$, $\alpha_v$, $\Gamma_v$, and the wiring $(C_v,K_v,\alpha_v,(\alpha_c)_c,\Gamma_v,(\Gamma_c)_c)$; none lists $M'_c$ or the child behavior tuple. The sibling keys list their own children and contracts; none lists $M'_c$. The child's own keys may change, including $\kappa_{\mathrm{Impl}}$ for a changed leaf; $\kappa_{\mathrm{Ref}}(c)$ changes only if $M'_c$ or $\alpha_c$ changes. Equal keys denote the same proposition, and the stored evidence proves that proposition; substituting the new child's refinement proof into the parent's derivation is sound by Theorem 2. $\blacksquare$
+
+The theorem does not require the new child to refine the old child. $\{0\}$ and $\{1\}$ are incomparable implementations of the same boundary $\{0,1\}$, and either may replace the other when the boundary is unchanged. The persistent store realizes the cutoff with path copying: the ancestor spine is rewritten, the unmodified subtrees are shared, and no ancestor solver is re-run.
+
+### 7.4 The evolution loop
+
+The evolution function
+
+$$
+G_{t+1} = \operatorname{evolve}(G_t, \Delta I)
+$$
+
+returns one of three outcomes: **Verified**, **Conflict**, or **Unresolved**. There is no default-to-pass.
+
+**Step 1 — Apply and reactivate.** Apply $\Delta I$: a new intent, a new decision, a protected revision with authorization, or a contract change. Recompute the active intents $A_k$ top-down. Resolve the affected decisions and check consistency. Mark stale decisions by reverse reachability. If a nogood is fully selected, return **Conflict** with the minimal nogood and its supporting decisions; stop before any machine search.
+
+**Step 2 — Locate.** Walk the layers from the root downward, checking the affected obligation keys. The result of each check is one of: **pass**, **fail** with a semantic counterexample, **failed proof witness** (for example, an inductive invariant or simulation relation that failed), or **unresolved** (timeout or unknown). Let $j$ be the first layer at which an affected obligation does not pass. Do not take the Verified path merely because no obligation "fails": publish only when every required obligation in the affected cone has valid pass evidence. A missing, unresolved, or pending obligation is not a pass.
+
+**Step 3 — Repair at $j$.** The check result determines the repair:
+
+- **Semantic counterexample, genuine.** A concrete execution admitted by the failing layer's machine violates an active intent, or a concrete interleaving of its children violates the decomposition. Repair the machine, connector, or contracts at that layer; re-establish its obligations and its refinement to the layer above; propagate upward only along the affected spine.
+- **Semantic counterexample, spurious child refinement.** The child's model or abstraction overapproximates: it admits behavior the fixed child implementation cannot realize. Repair the child model or its abstraction map by narrowing the abstraction, and re-establish the lower realization and the upper refinement. Narrowing the parent's incoming contract for a fixed child abstraction makes the inclusion harder and cannot remove the spurious behavior; reserve contract narrowing for the decomposition case below.
+- **Semantic counterexample, spurious decomposition.** The parent-side child contract is too permissive and the concrete children satisfy a stronger contract. Narrow the parent-side child contract or repair the connector, and re-establish the decomposition. If the concrete children do not satisfy the stronger contract, the repair belongs to the children, not to the contract.
+- **Failed proof witness.** An inductive invariant or simulation relation failed. Repair the witness (strengthen the invariant or relation) and recheck. This is a proof-search outcome, not a semantic counterexample and not a machine or contract edit by itself.
+- **Unresolved.** The checker timed out or returned unknown. Return **Unresolved**; do not classify it as genuine or spurious, and do not publish.
+
+For a refinement failure, the set example is decisive: implementation $\{ok\}$, child abstraction $\{ok,bad\}$, parent contract $\{ok\}$. The implementation satisfies the contract, but the abstraction admits $bad$. No stronger parent contract repairs the fixed child abstraction; narrowing the child abstraction to $\{ok\}$ does. A child refinement failure is never repaired by strengthening the parent-side contract alone.
+
+The genuine/spurious test for a semantic decomposition counterexample uses one shared trajectory:
+
+$$
+\exists r.\
+\operatorname{legal}_{W_v}(r)
+\ \wedge\ \operatorname{obs}_v(r) = \tau
+\ \wedge\ \forall c.\ \operatorname{realizable}\bigl(M_c, \operatorname{slice}_c(r)\bigr).
+$$
+
+A separate existential trajectory per child is not sufficient. Two children can each be realizable on their own slice while no common trajectory exists. The shared-bit witness is Proposition 2.
+
+**Step 4 — Publish.** If every obligation in the affected cone has valid pass evidence and every load-bearing decision is warranted, atomically advance the head from $G_t$ to $G_{t+1}$ and record the authorization. Otherwise return **Unresolved** with the failing or unresolved obligations and their witnesses.
+
+### 7.5 Genuine vs. spurious
+
+**Proposition 2 (Separate realizations do not imply a joint realization).** There are two child contracts, one requiring a shared bit to be $0$ and one requiring it to be $1$, such that each is separately realizable but no common trajectory realizes both.
+
+**Proof.** Let the shared bit be $b \in \{0,1\}$. Child 1 is realizable only with $b = 0$; child 2 is realizable only with $b = 1$. Each existential check succeeds with a different value of $b$. No single $r$ has $b = 0$ and $b = 1$. $\blacksquare$
+
+The proposition is the reason the repair step uses a joint trajectory. It is also the reason a connector that hides shared state behind per-child contracts is unsound: the correlation is not in either contract.
+
+### 7.6 Staleness and reopening
+
+A change to an intent, contract, or decision activates the dependency cone. Every decision in the cone is stale until re-warranted. A reopened alternative becomes selectable again; selecting it is a new decision with its own prerequisites and evidence. The prior selection remains in the history, so the audit trail is not rewritten.
+
+The dependency cone is computed on the reference graph, not on the storage graph. A subtree storage change with an unchanged semantic contract does not activate the cone; a semantic change with an unchanged storage pointer does. This is the practical benefit of separating keys from pointers.
+
+### 7.7 Costs
+
+| Operation | Cost | Structural reason |
+|---|---|---|
+| Active intent recurrence | $O(\sum_k (\lvert I_k\rvert + \lvert J_k\rvert + \text{premise occurrences}))$ | Strictly earlier-layer support; one pass |
+| Decision resolution and consistency | Linear in decisions plus nogood occurrences | Explicit selection; post-pass |
+| Satisfaction for a cell | Model-checking cost for $M_v$ | Local machine, local intent |
+| Wiring adequacy | A universal proof over the admissible child-tuple class for $(C_v,K_v,\alpha_v,(\alpha_c)_c,\Gamma_v,(\Gamma_c)_c)$; not a state-pair count | One certificate per wiring; independent of the concrete child implementations |
+| Decomposition | Up to $\lvert S_{M_v}\rvert \cdot \lvert S_{K_v}\rvert \cdot \prod_c \lvert S_{B_{v,c}}\rvert$ candidate relation pairs; the boundary state count without the parent factor is $\lvert S_{K_v}\rvert \cdot \prod_c \lvert S_{B_{v,c}}\rvert$ | A simulation relation against $M_v$ adds the parent factor. This is a state/relation-size bound, not a running-time bound. |
+| Child refinement | Up to $\lvert S_{M_c}\rvert \cdot \lvert S_{B_{v,c}}\rvert$ candidate relation pairs | Relation size, not generic running time; transition, alphabet, and property-automaton costs are separate. |
+| Cutoff at an unchanged boundary | $O(1)$ key/hash lookup per unchanged obligation | Encoding, hashing, and proof checking retain their own costs. |
+| Persistent update | $O(\text{spine length})$ index nodes for a persistent balanced map with bounded branching; otherwise the representation-sensitive update-path sum | Copying a large child vector and updating a balanced map have different costs. |
+
+The table is a cost profile, not a complexity-class claim. The change region is the dependency cone up to proved unchanged boundaries. A root-obligation change can reach the whole system; "bounded blast radius" means bounded by that cone, not by a fixed constant. Stratification removes the global fixed point and the concrete sibling product from the verification obligation; it does not make the per-layer model-checking problem cheap. Solver search, transition enumeration, and property-automaton construction are accounted separately.
+
+---
+
+## 8. End-to-End Example: Durable Acknowledgement
+
+### 8.1 The requirement and scope
+
+The system instance serves one request. The environment precondition is: at most one `req(id)` is delivered to an instance, and the instance is not reused after `ack` or `fail`. A reusable service needs a reset transition and matching contracts; that variant is outside this example.
+
+The declared safety intent is:
+
+- **Safety.** For every identifier $id$, an `ack(id)` output occurs only after the result for $id$ is durable, witnessed at the store boundary by `flush_ok(id)` before `committed(id)`.
+
+The liveness claim is separate and conditional:
+
+- **Conditional liveness.** If the scheduler is fair, the store responds to every `append(id)` with `flush_ok(id)` or `flush_fail(id)`, and the coordinator is fair, then every `req(id)` is eventually followed by `ack(id)` or `fail(id)`.
+
+The safety proof does not establish conditional liveness. Liveness is discharged only under those premises, which are recorded in the profile of the coordinator and store cells. The leaf runtime is run-to-completion, non-reentrant, with a FIFO event queue: `emit` enqueues an event and returns; the current handler completes before the next event is dispatched. Initialization is coordinator state `idle` and store state `empty`. The reentrant interpretation is outside this example; §8.5 also places the coordinator in `appending` before `append` is emitted, so a reentrant response is not discarded.
+
+### 8.2 Layer 0: the abstract design
+
+The root cell $v_0$ has the machine $M_0$:
+
+- states: `idle`, `pending(id)`, `durable(id)`, `acked(id)`;
+- transitions:
+  - `idle --req(id)--> pending(id)`;
+  - `pending(id) --commit_ok(id)--> durable(id)`;
+  - `pending(id) --commit_fail(id)--> acked(id)` with output `fail(id)`;
+  - `durable(id) --tau--> acked(id)` with output `ack(id)`.
+
+The root has no transition out of `acked(id)`; the instance is single-use, matching the environment precondition. The machine satisfies the safety intent by construction: `ack(id)` is emitted only from `durable(id)`, which is reached only by `commit_ok(id)`. Conditional liveness is a separate obligation under the fairness premises; it is not inferred from this safety construction.
+
+The root decision ledger records why the design separates durability from acknowledgement: the alternative of acknowledging on enqueue was rejected because it treats a volatile queue as durable; the reopening condition is a substrate that provides a durable atomic enqueue.
+
+### 8.3 Layer 0 decomposition
+
+The root declares two children at layer 1: a coordinator `coord` and a durable store `store`. The wiring $W_0$ routes:
+
+- `req(id)` from the environment to `coord`;
+- `append(id)` from `coord` to `store`;
+- `committed(id)` and `failed(id)` from `store` to `coord`;
+- `ack(id)` and `fail(id)` from `coord` to the environment.
+
+The store's boundary also exposes `flush_ok(id)` and `flush_fail(id)`; the wiring routes them to the environment observer that witnesses durability. The root's `commit_ok` is the abstraction of the store's `flush_ok` followed by `committed`; the abstraction map $\alpha$ is part of the decomposition record.
+
+The contracts are:
+
+**$B_{0,\mathrm{coord}}$** — inputs `req(id)`, `committed(id)`, `failed(id)`; outputs `append(id)`, `ack(id)`, `fail(id)`. Duties: at most one `req(id)` per instance; no second request after `ack` or `fail`; `append(id)` may follow `req(id)`; `ack(id)` only after `committed(id)`; `fail(id)` only after `failed(id)`. Conditional progress: under fair coordinator scheduling and a store response, every `req(id)` eventually receives `ack(id)` or `fail(id)`.
+
+**$B_{0,\mathrm{store}}$** — inputs `append(id)`; observable outputs `flush_ok(id)`, `flush_fail(id)`, `committed(id)`, `failed(id)`. Duties: at most one `append(id)` per instance; `committed(id)` only after `flush_ok(id)`; `flush_ok(id)` is the substrate's durability event; `failed(id)` only after `flush_fail(id)`. Conditional progress: under the substrate's fairness, every `append(id)` eventually receives `flush_ok(id)` or `flush_fail(id)` and then `committed(id)` or `failed(id)`.
+
+The contracts are not merely necessary ordering duties. Their trace languages are the prefix closures
+
+$$
+L_{\mathrm{coord}} = \operatorname{pref}(\texttt{req}(id)\,\texttt{append}(id)\,\texttt{committed}(id)\,\texttt{ack}(id)) \cup \operatorname{pref}(\texttt{req}(id)\,\texttt{append}(id)\,\texttt{failed}(id)\,\texttt{fail}(id)),
+$$
+
+$$
+L_{\mathrm{store}} = \operatorname{pref}(\texttt{append}(id)\,\texttt{flush\_ok}(id)\,\texttt{committed}(id)) \cup \operatorname{pref}(\texttt{append}(id)\,\texttt{flush\_fail}(id)\,\texttt{failed}(id)),
+$$
+
+with one identifier per instance. The root machine's trace language is
+
+$$
+L_0 = \operatorname{pref}(\texttt{req}(id)\,\texttt{commit\_ok}(id)\,\texttt{ack}(id)) \cup \operatorname{pref}(\texttt{req}(id)\,\texttt{commit\_fail}(id)\,\texttt{fail}(id)).
+$$
+
+The prefix closure ends at `ack` or `fail`; a second `ack`, a spontaneous output, or an incompatible continuation is not in $L_{\mathrm{coord}}$. The duplicate-ack composition trace `req, append, flush_ok, committed, ack, ack` projects onto the coordinator alphabet as `req, append, committed, ack, ack`, which is not in the prefix closure $L_{\mathrm{coord}}$; the composition trace is therefore excluded by the contract.
+
+The store boundary observation alphabet explicitly includes `flush_ok` and `flush_fail`. The proof boundary is not the projection that hides them: hiding `flush_ok` would make the good trace `append, flush_ok, committed` and the bad trace `append, committed` indistinguishable, so the durability duty would not be checkable. The contract keeps the durability observation visible.
+
+The decomposition obligation is
+
+$$
+K_0\bigl(\operatorname{beh}(B_{0,\mathrm{coord}}),\ \operatorname{beh}(B_{0,\mathrm{store}})\bigr)
+\subseteq
+\operatorname{beh}(M_0).
+$$
+
+It holds for the single-use protocol: any composition trace is a one-request trace; its `ack` is preceded by the coordinator's `committed`, which is preceded by the store's `flush_ok`; the root's `commit_ok`/`ack` path matches. The `commit_fail`/`fail` path matches the store's `flush_fail`/`failed` and the coordinator's `fail`. The abstraction maps the composition trace `req, append, flush_ok, committed, ack` to `req, commit_ok, ack` and `req, append, flush_fail, failed, fail` to `req, commit_fail, fail`; the composition's trace language is contained in $L_0$. The two-request trace `req(1), append(1), flush_ok(1), committed(1), ack(1), req(2), ...` is excluded by the interface precondition and the one-request trace language. The duplicate-ack trace `req, append, flush_ok, committed, ack, ack` is excluded by the prefix closure $L_{\mathrm{coord}}$. The wiring is stateless; the coordinator is a child cell, not an oracle inside the connector.
+
+### 8.4 Layer 1: the child machines
+
+**Coordinator $M_{\mathrm{coord}}$**: states `idle`, `appending(id)`, `ready(id)`, `done(id)`.
+
+- `idle --req(id)--> appending(id)` with output `append(id)`;
+- `appending(id) --committed(id)--> ready(id)`;
+- `ready(id) --tau--> done(id)` with output `ack(id)`;
+- `appending(id) --failed(id)--> done(id)` with output `fail(id)`.
+
+Its local active intent is "no acknowledgement before a committed result." The refinement $M_{\mathrm{coord}} \preceq B_{0,\mathrm{coord}}$ is a short simulation: `ack` only from `ready`, which is reached only by `committed`; the one-request clause follows from the absence of a transition out of `done`, and the trace language is exactly $L_{\mathrm{coord}}$.
+
+**Store $M_{\mathrm{store}}$**: states `empty`, `writing(id)`, `flushed(id)`, `committed(id)`, `failed`.
+
+- `empty --append(id)--> writing(id)`;
+- `writing(id) --flush_ok(id)--> flushed(id)`;
+- `flushed(id) --tau--> committed(id)` with output `committed(id)`;
+- `writing(id) --flush_fail(id)--> failed` with output `failed(id)`.
+- `committed(id)` has no outgoing transition except a silent stutter with no output.
+
+Its local active intent is "committed implies durable." The refinement $M_{\mathrm{store}} \preceq B_{0,\mathrm{store}}$ requires that `committed` is reachable only after `flush_ok`, and that `flush_ok` is the substrate's durability event. The boundary trace is `append, flush_ok, committed` (or `append, flush_fail, failed`); `committed` is emitted only after `flush_ok`, and the trace language is exactly $L_{\mathrm{store}}$.
+
+The layer-1 decisions record the choice of a write-ahead log over an in-memory queue with periodic snapshots. The premises are the durability requirement and the crash model. The rejected alternative's reopening condition is "a durable atomic append primitive is available from the substrate." The decision is provenance; the behavioral obligation is the refinement of the contracts.
+
+### 8.5 Layer 2: the executable leaves
+
+The layer-1 cells decompose into layer-2 leaves with identity wiring; the layer-2 leaf machine is the layer-1 machine. The programs are:
+
+```text
+P_store:
+  on append(id):
+    state := writing
+    write(log, id)                 # volatile write
+    r := fsync(log)                # substrate call
+    if r = 0: emit flush_ok(id); state := flushed; emit committed(id); state := committed
+    else:     emit flush_fail(id); state := failed; emit failed(id)
+
+P_coord:
+  on req(id):       state := appending; emit append(id)
+  on committed(id): if state = appending: state := ready; emit ack(id); state := done
+  on failed(id):    if state = appending: state := done; emit fail(id)
+```
+
+The substrate contract is: `fsync` returns 0 iff the record is durable across the modeled crash; `flush_ok(id)` is emitted only on a 0 return. The realization witness for the store relates the log state to `M_store`'s state: `fsync` success corresponds to the `flush_ok` transition, and the `committed` emission corresponds to `flushed -> committed`. The invariant is "a record is in `flushed` only if the corresponding `fsync` returned 0." The good trace `append, flush_ok, committed` is admitted; the bad trace `append, committed` is not, because no `flush_ok` transition occurred. The coordinator realization is the analogous event-loop simulation; `ack` is emitted on the `ready -> done` transition, after `committed`. Under the declared run-to-completion semantics, the response cannot be delivered while the request handler is still running; the program also enters `appending` before emitting `append`, so a synchronous/reentrant response would find the handler in `appending` and would not be discarded. Under the declared semantics and the stated fairness/enabling premises, the coordinator reaches `done` and emits `ack`; this is the conditional liveness claim, not part of the safety realization.
+
+### 8.6 The agent's initial mistake
+
+The agent writes the store to emit `committed` immediately after `write` returns, before `fsync`. The refinement check $P_{\mathrm{store}} \preceq M_{\mathrm{store}}$ fails with the finite trace
+
+$$
+\texttt{append}(id),\ \texttt{committed}(id).
+$$
+
+The trace violates the durability duty: `committed` occurs without `flush_ok`. The evidence record is fail, and the store contract remains active.
+
+Two repairs are available.
+
+- **Downward repair at layer 2.** Add the `fsync` before `committed`. The new store program satisfies the same contract. Only the store's implementation key `k_Impl(store_code)` changes. The leaf machine `M_store` and its incoming contract `B_{1,store_code} = beh(M_store)` are fixed, so `k_Ref(store_code)` and the parent `k_Dec(store)` are unchanged. The cutoff theorem reuses the parent decomposition and the coordinator proof.
+- **Upward refinement.** Strengthening a contract cannot make an incapable substrate provide durability. The upward path is one of two authorized changes: (i) introduce a supported flush protocol and implement it, with the new contract and evidence; or (ii) revise the substrate or requirement premise with an authorized disposition and reopen the store decision. The example assumes the substrate supports `fsync`; the upward path is for a different substrate and must be authorized and re-verified.
+
+The decision ledger records both paths and the condition under which the upward path is preferred. The audit trail is not rewritten: the original failed attempt, its counterexample, and the chosen repair remain in the version history.
+
+### 8.7 Inspection at each layer
+
+| Layer | What the human sees | What they do not need to read |
+|---|---|---|
+| 0 | the safety intent, the conditional liveness premise, the abstract durability state machine, the decision rationale | any implementation |
+| 1 | the coordinator and store machines, the contracts including the visible `flush_ok` durability observation, the decision ledger, evidence status | the log buffer code |
+| 2 | the WAL code and its realization evidence, scoped to the substrate contract | unrelated modules |
+
+At layer 1, the human can verify the acknowledgement protocol: `ack` only after `committed`, `committed` only after a durable flush, and the progress duties. At layer 2, they audit the leaf whose contract they already understand. The soundness corollary guarantees that the layer-1 view is a sound abstraction of the code.
+
+### 8.8 What the example demonstrates
+
+The example exercises all three failure modes:
+
+- the wide leap is blocked because the coordinator and store interfaces must be declared before their code;
+- the rationale is preserved in the decision ledger, and the rejected in-memory alternative has a reopening condition;
+- the human inspects layer 1 rather than the WAL code.
+
+It also exercises the downward repair and the authorized upward path, and the cutoff theorem.
+
+---
+
+## 9. Mechanization Target
+
+The calculus is designed to be mechanized in a small dependent-type development. The target is not a proof of the entire engineering stack; it is a kernel-checked proof of the algebraic spine, with the operational and solver obligations as explicit hypotheses.
+
+### 9.1 Target signatures
+
+```lean
+-- Schematic target signatures. Proofs and instance details are omitted;
+-- this is a mechanization target, not a checked development.
+-- Observations and behavior
+structure Machine (Obs : Type) where
+  beh : Set Obs
+
+def Refines {Obs} (M A : Machine Obs) : Prop := M.beh ⊆ A.beh
+
+theorem refines_refl (M : Machine Obs) : Refines M M
+theorem refines_trans : Refines M A → Refines A B → Refines M B
+
+-- A connector is a monotone transformer
+structure Connector (ι Obs : Type) where
+  K : (ι → Set Obs) → Set Obs
+  monotone : ∀ B B', (∀ i, B i ⊆ B' i) → K B ⊆ K B'
+
+-- A layer: intents, support, decisions, cells, decomposition, evidence
+structure Layer where
+  Intent : Type
+  active : Set Intent
+  Cell : Type
+  machine : Cell → Machine Obs
+  intentOf : Intent → Cell
+  spec : Intent → Set Obs
+  evidence : Obligation → Evidence
+
+-- Development: a finite sequence with adjacent refinement
+structure Development where
+  depth : Nat
+  layer : Fin (depth + 1) → Layer
+  child : (k : Fin depth) → (v : (layer k).Cell) → Set ((layer (k+1)).Cell)
+  contract : (k : Fin depth) → (v : (layer k).Cell) → (c : (layer (k+1)).Cell) → Set Obs
+  dec : (k : Fin depth) → (v : (layer k).Cell) → Prop
+  ref : (k : Fin depth) → (v : (layer k).Cell) → (c : (layer (k+1)).Cell) → Prop
+  valid : Prop
+
+theorem stratified_soundness :
+  Development.valid D →
+  ∀ (k : Fin (D.depth + 1)) (v : (D.layer k).Cell),
+    Refines (subDevelopment D k v) ((D.layer k).machine v)
+
+theorem cutoff :
+  UnchangedContract D D' c →
+  ValidChild D' c →
+  ∀ ancestorObligation, ancestorObligation ∉ changedCone c →
+    Reusable D D' ancestorObligation
+
+theorem evidence_separation :
+  Active D k c → Evidence D k c = fail → Active D k c
+
+theorem projection_counterexample :
+  ∃ (R : Set (Bool × Bool)),
+    R = {(false,false), (true,true)} ∧
+    (false,true) ∈ (Prod.fst '' R) ×ˢ (Prod.snd '' R) ∧
+    (false,true) ∉ R
+```
+
+The actual development instantiates `Obs` with finite traces, defines `subDevelopment` by structural recursion on the refinement tree, and proves the four theorems. The `Layer` record in the target is a schematic; the paper's six-field record is the instantiation.
+
+### 9.2 Trusted base
+
+The kernel checks the algebra. The following remain explicit hypotheses, with their scopes recorded:
+
+- the operational soundness of a connector's wiring against its transformer;
+- the soundness of the evidence checker for each method;
+- the adequacy of the finite model to the code for a model-checking claim;
+- the substrate contract for a leaf realization;
+- the input-receptiveness and progress obligations for the chosen profile.
+
+A mechanized proof cannot make these hypotheses true. It can make their use explicit and prevent the algebra from hiding them.
+
+### 9.3 Size
+
+The target is approximately 250–350 lines of Lean 4 with no axioms and no admitted proofs beyond the hypotheses. The small size is a design objective: a reader can audit the entire correctness spine in one sitting, and a reviewer can see exactly which premises are assumed.
+
+---
+
+## 10. Related Work
+
+**Refinement calculi.** Back and von Wright's refinement calculus and Abrial's Event-B develop programs by stepwise refinement, with invariants and proof obligations at each step. The layer calculus shares the stepwise discipline but makes the interface between steps a first-class contract and adds a persistent provenance ledger. Event-B's refinement is per-machine; the layer calculus adds the connector and the child-contract decomposition, which is what enables independent child verification.
+
+**Temporal specification and refinement mappings.** TLA+ and the Abadi–Lamport theory of refinement mappings establish implementation relations between specifications. The layer calculus uses the same inclusion idea, specialized to a layered development with explicit contracts. The connector's monotonicity is the composition law; the layer structure is the engineering discipline that keeps the law applicable.
+
+**Interface automata and assume-guarantee.** de Alfaro and Henzinger's interface automata formalize open components with input/output variance and compatibility. The child refinement obligation's input receptiveness is the same discipline. Assume-guarantee reasoning is powerful but fragile when assumptions are circular; the layer calculus avoids circularity by making the connector own the interaction and by requiring an executable coordinator rather than a circular assumption.
+
+**Design by contract.** Meyer's contracts specify preconditions, postconditions, and invariants. The layer calculus extends the idea from a single object boundary to a stratified decomposition: the contract is the interface between layers, and its satisfaction is checked by refinement rather than by runtime assertion alone.
+
+**Hierarchical state machines.** Harel's statecharts provide nested and orthogonal states. The layer calculus uses ordinary state machines at each layer and a connector for interaction; it does not rely on statechart semantics. The hierarchy is in the development structure, not in a single expanded automaton.
+
+**Counterexample-guided abstraction refinement.** Clarke et al.'s CEGAR loop uses counterexamples to refine abstractions. The evolution loop is a stratified CEGAR: the failure layer localizes the repair, and the shared-trajectory check separates genuine from spurious witnesses. The key difference is that the layer contracts are persistent interfaces, so a repair at one layer reuses the proofs at unchanged boundaries.
+
+**Truth maintenance and provenance.** de Kleer's assumption-based TMS, McAllester's truth maintenance, and provenance semirings model support and retraction. The decision ledger borrows the idea of explicit support and reopening, but it does not perform general nonmonotonic inference. Selection is explicit and support is strictly earlier-layer, so the warrant is a forward recurrence. The simplification is deliberate: the paper needs impact analysis and reopening, not a general TMS.
+
+**Persistent data structures.** Driscoll et al. established path copying and persistence. The version model uses an immutable snapshot and content-addressed evidence; the cutoff theorem is about key locality, and a persistent store is one efficient implementation.
+
+**Agent software engineering.** Recent work on repository-level coding agents (SWE-bench and related benchmarks) and on self-refinement and reflection shows that agents can iterate on code and tests. The layer calculus addresses a different point in the loop: it constrains what an agent may accept as a completed step. It is complementary to better code generation, better test generation, and better retrieval; it supplies the missing intermediate behavioral obligations.
+
+---
+
+## 11. Limitations and Open Problems
+
+**Connector admissibility.** The soundness theorem is only as strong as the connector's operational soundness and reduction preservation. The theorem is conditional on validity conditions 5 and 6 (executable realization and profile admissibility); those conditions are part of layer validity, not background assumptions. Rich concurrency — weak memory, Byzantine faults, real-time deadlines — needs richer profiles and correspondingly richer admissibility proofs. The paper's trace kernel is the base case, not the final word.
+
+**Liveness and profiles.** The worked example's safety claim is discharged by the trace kernel; its liveness claim is conditional on the stated fairness and enabling premises and is not derived from the safety proof. A liveness profile needs its own operational composition law and progress-preservation witness, not a relabeling of the safety argument.
+
+**Intent correctness.** The theorem guarantees that the executable system refines the admitted root intents. It does not guarantee that the root intents are the right requirements. Root authority is an organizational decision; the calculus makes it explicit and auditable, but it cannot make it correct.
+
+**Evidence soundness.** The gate trusts the evidence checker. A buggy model checker, an inadequate model, or a mis-specified substrate contract can pass a wrong system. The trusted base must be stated and, where possible, minimized. The mechanization target makes the algebraic part small; the operational part remains a hypothesis.
+
+**Coverage of the decision ledger.** The gate can require a decision for every interface and contract choice, but it cannot force an agent to record every implicit choice inside a leaf implementation. The ledger's coverage is the declared obligations and interfaces. A leaf is a trust boundary; its contract is what the parent knows.
+
+**Test weakening.** The gate blocks weakening of protected intents. It does not prevent an agent from writing a weak test for a property that was never formalized. The remedy is to formalize the property as an intent; the framework makes that remedy visible, not automatic.
+
+**Scale.** The inspection view of a large layer can still be large. The calculus bounds the change region by the dependency cone up to proved unchanged boundaries, and it bounds the size of a local proof, but a root-obligation change can reach the whole system, and it does not bound the number of cells or the cost of a single model-checking query. Tool support, proof caching, and model-checking engineering remain necessary.
+
+**Empirical validation.** The claim that the protocol reduces agent error rates is a hypothesis. The paper's contribution is the calculus and the gate; a controlled study with arm-independent ground truth is the natural next step.
+
+**Layer choice.** The depth $L$ and the placement of contracts are design decisions. A poor decomposition can make the connector large or the contracts weak. The calculus provides the correctness condition; the architecture remains an engineering choice, guided by the capacity and factoring remarks.
+
+---
+
+## 12. Conclusion
+
+Software development by agents fails when the gap between a requirement and code is filled by unverified invention. The layer calculus closes the gap with explicit intermediate objects: active intents with support, decisions with rationale and reopening conditions, state machines with contracts, and evidence for every behavioral obligation. One relation — behavior inclusion — carries satisfaction, decomposition, refinement, and realization. Stratification makes support a forward recurrence, makes sibling verification a substitution lemma, and makes version evolution reuse every proof at an unchanged interface. The soundness theorem is short because the system is one chain of inclusions, not three bolted-together worlds. The protocol is the operational reading of that chain: read the layer, fix the interface, verify the machine, decompose into contracts, substitute the child proof, publish atomically. The durable-acknowledgement example shows the chain catching the exact error that motivates the framework: an agent that treats a volatile write as durable, and a gate that refuses to let it pass.
+
+---
+
+## Appendix A. Proof Details
+
+### B.1 Theorem 1, expanded
+
+The executable sub-development rooted at a cell $v \in V_k$ is defined by structural recursion on the refinement tree:
+
+- if $k = L$, it is $\operatorname{Beh}_{\mathrm{exec}}(\ell) = \operatorname{beh}(P_\ell)$ with its declared semantics;
+- if $k < L$, it is $\operatorname{Beh}_{\mathrm{exec}}(v)$, the behavior of the concrete wiring $C_v$ applied to the executable sub-developments of the children $c \in \operatorname{ch}(v)$.
+
+The induction hypothesis gives, for each child $c$, $B_c = \operatorname{Beh}_{\mathrm{exec}}(c) \subseteq \operatorname{beh}(M_c)$. Condition 5 gives $\operatorname{Beh}_{\mathrm{exec}}(v) \subseteq K_v(\{\alpha_c(B_c)\}_c)$. The induction hypothesis and monotonicity give $K_v(\{\alpha_c(B_c)\}_c) \subseteq K_v(\{\alpha_c(\operatorname{beh}(M_c))\}_c)$. The inter-layer operator gives $\alpha_c(\operatorname{beh}(M_c)) \subseteq \operatorname{beh}(B_{v,c})$, and monotonicity gives $K_v(\{\alpha_c(\operatorname{beh}(M_c))\}_c) \subseteq K_v(\{\operatorname{beh}(B_{v,c})\}_c)$. The decomposition obligation gives $K_v(\{\operatorname{beh}(B_{v,c})\}_c) \subseteq \operatorname{beh}(M_v)$. Transitivity gives $\operatorname{Beh}_{\mathrm{exec}}(v) \subseteq \operatorname{beh}(M_v)$. The satisfaction evidence gives $\operatorname{beh}(M_v) \subseteq \llbracket c \rrbracket$ for every active intent assigned to $v$. Condition 6 supplies initialization, input receptiveness, and (where claimed) progress. The root case $k = 0$ composes the chain to $\Phi_0(v_0) = \bigcap_{c \in A_0(v_0)} \llbracket c \rrbracket$.
+
+### B.2 Theorem 3, expanded
+
+The key definitions are functions of their argument tuples. The parent's wiring-adequacy key lists $C_v$, $K_v$, $\alpha_v$, $(\alpha_c)_c$, $\Gamma_v$, and $(\Gamma_c)_c$; it is universally quantified over admissible child behaviors and does not list the child implementations. A change to a child interface map changes the parent's wiring-adequacy key and requires the applicable parent evidence to be re-established. The parent's satisfaction key for an intent $c'$ lists $M_v$, $\llbracket c' \rrbracket$, and $\Gamma_v$; none of these changes. The parent's decomposition key lists $W_v$, the contracts $B_{v,c}$, $M_v$, $\alpha_v$, and $\Gamma_v$; none changes. A sibling's refinement key lists the sibling machine and its own contract; neither changes. An edit to a leaf program changes `k_Impl`; if the leaf machine and its incoming contract are fixed, `k_Ref` and the parent decomposition key are unchanged. A changed child machine changes its refinement key and is re-established. The parent operational instance is re-derived by applying the unchanged universal wiring certificate; no ancestor solver is re-run. Equal keys denote equal propositions; the stored evidence is a proof of the proposition, so substitution preserves soundness. The persistent store's path copying is an implementation of the same substitution, not a separate proof rule.
+
+### B.3 Lemma 3, expanded
+
+Let $\rho = s_0 \xrightarrow{\sigma_1} s_1 \xrightarrow{\sigma_2} \cdots \xrightarrow{\sigma_n} s_n$ be a child execution. Initiation relates $s_0$ to an initial contract state $t_0$. Inductively, $s_i$ is in $I_c$ and related to $t_i$. For step $i+1$: if $\lambda_c(\sigma_{i+1}) = \epsilon$, the relation keeps $t_{i+1} = t_i$; otherwise the step-simulation condition supplies $t_{i+1}$ with the matching contract action. At the end, the sequence of non-silent contract actions is exactly $\lambda_c(\rho)$, so the abstract trace is in $\operatorname{tr}(B_{v,c})$. Input receptiveness ensures the abstract trace is not vacuous at open inputs; silent convergence ensures liveness profiles do not hide infinite internal stuttering.
+
+---
+
+## Appendix B. Notation
+
+| Symbol | Meaning |
 |---|---|
-| Arm 0: Capable baseline | Versioned source and contracts, build-graph dependency tracking, automated test suites, ADRs, and scoped codebase queries |
-| Arm 1: Flat-parent ledger | Recorded claims and evidence linked by ungrouped parent edges under a fixed global conjunction/disjunction convention |
-| Arm 2: Grouped positive support | Grouped AND/OR justifications ($J$) and obligations ($O$) without scoped absence queries or nogoods ($N$) |
-| Arm 3: Full JIRL architecture | Grouped support, explicit decision records, stratified absence queries, nogoods, projection-based reuse, and atomic snapshot publication |
+| $\mathcal{O}_X$ | observation space at interface $X$ |
+| $\operatorname{beh}(M)$ | behavior set of machine $M$ |
+| $\operatorname{Beh}_{\mathrm{exec}}(v)$ | executable behavior of the sub-development rooted at $v$ |
+| $C_v$ | concrete wiring implementation at $v$ |
+| $Q_c$ | an admissible child behavior used in the wiring-adequacy quantifier |
+| $\preceq$, $\preceq_\alpha$ | refinement (with abstraction $\alpha$) |
+| $\mathcal{L}_k$ | layer $k$ |
+| $I_k, J_k$ | intents and support links |
+| $D_k, N_k, S_k$ | decisions, nogoods, selections |
+| $V_k$ | cells at layer $k$ |
+| $M_v$ | machine of cell $v$ |
+| $A_k$, $A_k(v)$ | active intents at layer $k$, owned by $v$ |
+| $\Phi_k(v)$ | semantic conjunction of active intents owned by $v$ |
+| $\chi_k(v)$ | decomposition or realization record |
+| $W_v$ | wiring skeleton |
+| $K_v$ | connector transformer |
+| $B_{v,c}$ | contract from $v$ to child $c$ |
+| $\alpha_c$ | child abstraction map from child observations to the contract interface |
+| $E_k$ | evidence map |
+| $\kappa$ | obligation key; $\kappa_{\mathrm{Wire}}$ is the wiring-adequacy key over $(C_v,K_v,\alpha_v,(\alpha_c)_c,\Gamma_v,(\Gamma_c)_c)$ |
+| $G_t$ | version at time $t$ |
+| $\operatorname{stale}(x)$ | decisions depending on $x$ |
+| $\Rrightarrow$ | inter-layer refinement operator |
 
-To isolate representation effects from authoring variance, Arms 1–3 are evaluated wherever possible by projecting the same frozen, independently authored corpus of claims and obligations into each arm's schema; when authoring effort differs across arms, capture and maintenance time are measured explicitly.
-
-**Corpus and witness scenarios.** An initial ecological pilot tracks a single subsystem history comprising roughly 30–60 claims across 5–10 evolution steps, seeded with replayable witness scenarios for: absence invalidation upon claim insertion; premise withdrawal with surviving alternative derivations; hidden shared-resource contention; acyclic protocol-order mismatch; obligation strengthening over unchanged code bytes; semantic merge violating a shared capacity budget; rejected-but-feasible design options; bounded versus universal evidence scopes; and authorized retirement of protected obligations. Multi-history confirmatory studies size their sample count via predeclared power or precision targets.
-
-**Ground truth and metrics.** Before running the arms, independent domain reviewers freeze the ground-truth classification of each obligation at each evolution step, defining `needs_attention` whenever an obligation's property is violated or its prior evidence ceases to apply under unchanged-input or certified-reuse rules. Recorded metrics per witness family are: invalidation precision and recall, explanation accuracy on a graded rubric of "why / what-if" queries, false guarantee assertions, detected cross-branch conflicts, checker execution cost, and human authoring/review time.
-
-Five predeclared falsification criteria govern interpretation of the empirical results:
-
-* **F1 — Overall architectural net benefit.** If Arm 0 is non-inferior to Arm 3 on invalidation recall and explanation accuracy within predeclared margins while incurring lower total authoring and operating cost, the ledger's added structure does not justify its overhead on that class of projects.
-* **F2 — Scoped absence and nogoods.** If Arm 2 is non-inferior to Arm 3 on corpora containing absence-invalidation and cross-branch constraint witnesses at lower cost, explicit absence queries and nogoods are unnecessary for that workload.
-* **F3 — Conjunctive/disjunctive grouping.** If Arm 1 is non-inferior to Arm 2 on premise-withdrawal and alternative-derivation witnesses, grouped hyperedges do not earn their representation cost over flat dependency links.
-* **F4 — Soundness criterion.** Any instance in which Arm 3 certifies a required obligation as warranted and ready using stale, inapplicable, or incomplete evidence is a soundness failure of the implementation or model horizon, evaluated independently of average productivity metrics.
-* **F5 — Interference-guided scheduling.** If the SCC decomposition of $\operatorname{interferes}_o$ degenerates into all singletons or a single global component across representative changes, or fails to reduce verification scheduling cost relative to Arm 0, the interference-graph scheduling heuristic is rejected while retaining the underlying obligation calculus.
-
-### 6.6 Conclusion
-
-JIRL assigns each software-evolution question to a distinct mathematical boundary: positive closure $D(\mathcal M)$ and $W(\mathcal M, \mathcal E)$ determine which derivations reach a claim; full-closure nogood evaluation $\operatorname{ActiveNogoods}$ determines whether premises can co-hold; exact check reports record what was verified and in what scope; action-specific authority records which protected obligations and roles may change; and content-addressed snapshots pin coherent configurations across time. At the same time, our complexity bounds and counterexamples establish the exact limits of the formalism: minimal assumption labels can grow as $2^n$, graph topology cannot substitute for behavioral composition proofs, and incremental cutoff requires complete observational projections. A compact reference implementation of the whole-candidate evaluator and atomic snapshot store, paired with the differential oracle and the four-arm empirical protocol, provides a direct path to testing these guarantees in practice.
+---
 
 ## References
 
-1. Johan de Kleer. *An Assumption-Based TMS*. Artificial Intelligence 28, 1986. Local: `references/library/pdf/dekleer-1986-atms.pdf`. David McAllester. *Truth Maintenance*. AAAI, 1990. Local: `references/library/pdf/mcallester-1990-truth-maintenance.pdf`.
-2. Todd J. Green, Grigoris Karvounarakis, and Val Tannen. *Provenance Semirings*. PODS, 2007. [Author-hosted manuscript](https://web.cs.ucdavis.edu/~green/papers/pods07.pdf). Local: `references/library/pdf/green-2007-provenance-semirings.pdf`.
-3. Axel van Lamsweerde. *Goal-Oriented Requirements Engineering: A Guided Tour*. RE, 2001. Local: `references/library/pdf/van-lamsweerde-2001.pdf`.
-4. Nam Pyo Suh. *Axiomatic Design*. MIT course material, 2004; theory developed in *The Principles of Design* (1990) and *Axiomatic Design: Advances and Applications* (2001). Local: `references/library/pdf/suh-2004-axiomatic-design.pdf`.
-5. Tyson R. Browning. *Applying the Design Structure Matrix to System Decomposition and Integration Problems: A Review and New Directions*. IEEE Transactions on Engineering Management 48(3), 2001. Local: `references/library/pdf/browning-2001-dsm.pdf`.
-6. Werner Kunz and Horst W. J. Rittel. *Issues as Elements of Information Systems*. Working Paper 131, University of California, Berkeley, 1970. Local: `references/library/pdf/kunz-rittel-1970-ibis.pdf`.
-7. Luca de Alfaro and Thomas A. Henzinger. *Interface Automata*. ESEC/FSE, 2001, 109–120. [DOI](https://doi.org/10.1145/503209.503226). Local: `references/library/pdf/dealfaro-henzinger-2001-interface-automata.pdf`.
-8. Martín Abadi and Leslie Lamport. *Conjoining Specifications*. ACM TOPLAS 17(3), 1995, 507–534. Local: `references/library/pdf/abadi-lamport-1995-conjoining-specifications.pdf`.
-9. Martín Abadi and Leslie Lamport. *The Existence of Refinement Mappings*. Theoretical Computer Science 82(2), 1991, 253–284. Local: `references/library/pdf/abadi-lamport-refinement.pdf`.
-10. James R. Driscoll, Neil Sarnak, Daniel D. Sleator, and Robert E. Tarjan. *Making Data Structures Persistent*. Journal of Computer and System Sciences 38(1), 1989. [Author-hosted manuscript](https://www.cs.cmu.edu/~sleator/papers/making-data-structures-persistent.pdf). Local: `references/library/pdf/driscoll-1989-persistence.pdf`.
-11. Matthew A. Hammer, Khoo Yit Phang, Michael Hicks, and Jeffrey S. Foster. *Adapton: Composable, Demand-Driven Incremental Computation*. PLDI, 2014. [Author-hosted manuscript](https://matthewhammer.org/adapton/adapton-pldi2014.pdf). Local: `references/library/pdf/hammer-2014-adapton.pdf`.
-12. Pamela Zave and Michael Jackson. *Four Dark Corners of Requirements Engineering*. ACM TOSEM 6(1), 1997. Local: `references/library/pdf/zave-jackson-1997.pdf`.
-13. Ira D. Baxter. *Design Maintenance Systems*. Communications of the ACM 35(4), 1992, 73–89. [Author-hosted manuscript](https://semanticdesigns.com/Company/Publications/DMS-CACM-1992-baxter.pdf). Local: `references/library/pdf/baxter-1992-design-maintenance.pdf`.
+1. J.-R. Abrial. *The B-Book: Assigning Programs to Meanings.* Cambridge University Press, 1996.
+2. R.-J. Back and J. von Wright. *Refinement Calculus: A Systematic Introduction.* Springer, 1998.
+3. M. Abadi and L. Lamport. Conjoining Specifications. *ACM Transactions on Programming Languages and Systems*, 17(3):507–534, 1995.
+4. M. Abadi and L. Lamport. The Existence of Refinement Mappings. *Theoretical Computer Science*, 82(2):253–284, 1991.
+5. L. de Alfaro and T. A. Henzinger. Interface Automata. In *Proc. ESEC/FSE*, pages 109–120, 2001.
+6. E. M. Clarke, O. Grumberg, S. Jha, Y. Lu, and H. Veith. Counterexample-Guided Abstraction Refinement for Symbolic Model Checking. *Journal of the ACM*, 50(5):752–794, 2003.
+7. J. de Kleer. An Assumption-Based TMS. *Artificial Intelligence*, 28(2):127–162, 1986.
+8. J. R. Driscoll, N. Sarnak, D. D. Sleator, and R. E. Tarjan. Making Data Structures Persistent. *Journal of Computer and System Sciences*, 38(1):86–124, 1989.
+9. T. J. Green, G. Karvounarakis, and V. Tannen. Provenance Semirings. In *Proc. PODS*, pages 31–40, 2007.
+10. D. Harel. Statecharts: A Visual Formalism for Complex Systems. *Science of Computer Programming*, 8(3):231–274, 1987.
+11. M. P. Herlihy and J. M. Wing. Linearizability: A Correctness Condition for Concurrent Objects. *ACM Transactions on Programming Languages and Systems*, 12(3):463–492, 1990.
+12. C. A. R. Hoare. *Communicating Sequential Processes.* Prentice Hall, 1985.
+13. C. E. Jimenez, J. Yang, A. Wettig, S. Yao, K. Pei, O. Press, and K. Narasimhan. SWE-bench: Can Language Models Resolve Real-World GitHub Issues? In *Proc. ICLR*, 2024.
+14. W. Kunz and H. W. J. Rittel. Issues as Elements of Information Systems. Working Paper 131, University of California, Berkeley, 1970.
+15. L. Lamport. *Specifying Systems: The TLA+ Language and Tools for Hardware and Software Engineers.* Addison-Wesley, 2002.
+16. R. J. Lipton. Reduction: A Method of Proving Properties of Parallel Programs. *Communications of the ACM*, 18(12):717–721, 1975.
+17. A. Madaan, N. Tandon, P. Gupta, S. Hallinan, L. Gao, S. Wiegreffe, U. Alon, N. Dziri, S. Prabhumoye, Y. Yang, S. Gupta, B. P. Majumder, K. Hermann, S. Welleck, A. Yazdanbakhsh, and P. Clark. Self-Refine: Iterative Refinement with Self-Feedback. In *Proc. NeurIPS*, 2023.
+18. D. McAllester. Truth Maintenance. In *Proc. AAAI*, pages 1109–1116, 1990.
+19. B. Meyer. *Object-Oriented Software Construction.* Prentice Hall, 2nd edition, 1997.
+20. N. Shinn, F. Cassano, A. Gopinath, K. Narasimhan, and S. Yao. Reflexion: Language Agents with Verbal Reinforcement Learning. In *Proc. NeurIPS*, 2023.
+21. N. P. Suh. *Axiomatic Design: Advances and Applications.* Oxford University Press, 2001.
+22. A. van Lamsweerde. Goal-Oriented Requirements Engineering: A Guided Tour. In *Proc. IEEE RE*, pages 249–262, 2001.
+23. S. Yao, J. Zhao, D. Yu, N. Du, I. Shafran, K. Narasimhan, and Y. Cao. ReAct: Synergizing Reasoning and Acting in Language Models. In *Proc. ICLR*, 2023.

@@ -34,11 +34,11 @@
       margin: 0;
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Serif SC", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       line-height: 1.65;
     }
     .container {
-      max-width: 54rem;
+      max-width: 56rem;
       margin: 0 auto;
       padding: 3.5rem 1.5rem 5rem;
     }
@@ -82,8 +82,8 @@
       margin-bottom: 0.85rem;
     }
     .card h2 {
-      margin: 0 0 0.5rem;
-      font-size: 1.5rem;
+      margin: 0 0 0.45rem;
+      font-size: 1.55rem;
       line-height: 1.3;
     }
     .card h2 a {
@@ -97,7 +97,7 @@
       margin: 0 0 1.15rem;
       color: var(--muted);
       font-weight: 500;
-      font-size: 1.04rem;
+      font-size: 1.06rem;
     }
     .abstract {
       margin: 0 0 1.4rem;
@@ -136,7 +136,7 @@
       padding-top: 1.25rem;
       border-top: 1px solid var(--border);
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
       gap: 0.5rem 1.25rem;
       font-size: 0.88rem;
     }
@@ -155,34 +155,36 @@
     <header>
       <div>
         <h1>xywsxp · Research &amp; Formal Specifications</h1>
-        <p>Working papers, executable formal models, and collaborative design specifications.</p>
+        <p>Working papers, mechanized layer calculi, and collaborative design specifications.</p>
       </div>
       <a class="btn" href="https://github.com/xywsxp/xywsxp.github.io" target="_blank" rel="noopener">🐙 GitHub Repository</a>
     </header>
 
     <article class="card">
-      <span class="eyebrow">Working Paper · JIRL-PAPER-v1 · Open for Collaborative Review</span>
-      <h2><a href="/jirl-formal-paper/">The Justified Intent &amp; Refinement Ledger (JIRL)</a></h2>
-      <p class="subtitle">Stratified Justification, Compositional Assurance, and Coherent Software Evolution</p>
+      <span class="eyebrow">Formal Technical Report · November 2026 · Open for Collaborative Review</span>
+      <h2><a href="/jirl-formal-paper/">Stratified Software Development</a></h2>
+      <p class="subtitle">A Layer Calculus for Agent-Authored Systems</p>
       <p class="abstract">
-        A formal architecture separating software evolution into three content-addressed strata (<strong>Material</strong>, <strong>Evaluation</strong>, and <strong>Authority</strong>), combining monotone grouped positive support closure with global nogood consistency, interface-automaton &amp; circular assume-guarantee compositional verification boundaries, and sound incremental early cutoff backed by 37 executed finite witnesses (<code>P1–P21</code>, <code>V16–V31</code>).
+        Autonomous coding agents fail in three recurring ways: they leap from a requirement to code and invent the missing design; they lose the rationale for load-bearing choices and later weaken tests to make builds pass; and they leave humans with no trustworthy intermediate view of what the system does. This report presents a layer calculus that makes software development a sequence of verified behavior inclusions. One relation — behavior inclusion under an abstraction map — serves for intent satisfaction, contract refinement, connector decomposition, and code realization. Stratification turns support evaluation into a forward recurrence, sibling verification into a substitution lemma, and version evolution into proof reuse at unchanged interfaces.
       </p>
       <div class="actions">
         <a class="btn primary" href="/jirl-formal-paper/">📖 Read &amp; Annotate Paper</a>
-        <a class="btn" href="/jirl-formal-paper/#12-theoretical-placement">🎯 §1.2 Theoretical Placement</a>
         <a class="btn" href="/jirl-formal-paper.pdf" target="_blank" rel="noopener">⬇ Download PDF</a>
-        <a class="btn" href="https://github.com/xywsxp/xywsxp.github.io/tree/main/jirl" target="_blank" rel="noopener">💻 Model &amp; 37 Witnesses</a>
+        <a class="btn" href="https://github.com/xywsxp/xywsxp.github.io/blob/main/jirl/JirlCalculus.lean" target="_blank" rel="noopener">🔬 Lean 4 Mechanization</a>
+        <a class="btn" href="https://github.com/xywsxp/xywsxp.github.io/tree/main/jirl" target="_blank" rel="noopener">💻 Source &amp; Models</a>
         <a class="btn" href="https://github.com/xywsxp/xywsxp.github.io/issues" target="_blank" rel="noopener">💬 Shared Annotations &amp; Issues</a>
       </div>
       <div class="toc-preview">
-        <a href="/jirl-formal-paper/#1-introduction-and-problem-formulation">§1. Introduction &amp; Problem Formulation</a>
-        <a href="/jirl-formal-paper/#12-theoretical-placement">§1.2 Theoretical Placement</a>
-        <a href="/jirl-formal-paper/#2-abstract-model-and-stratified-persistence">§2. Abstract Model &amp; Stratified Persistence</a>
-        <a href="/jirl-formal-paper/#3-support-algebra-and-consistency-semantics">§3. Support Algebra &amp; Consistency Semantics</a>
-        <a href="/jirl-formal-paper/#4-compositional-verification-boundaries-and-executable-realization">§4. Compositional Verification Boundaries</a>
-        <a href="/jirl-formal-paper/#5-incremental-evolution-and-transactional-publication">§5. Incremental Evolution &amp; Publication</a>
-        <a href="/jirl-formal-paper/#6-feasibility-complexity-and-falsification">§6. Feasibility, Complexity &amp; Falsification</a>
-        <a href="/jirl-formal-paper/#references">References</a>
+        <a href="/jirl-formal-paper/#1-introduction">§1. Introduction &amp; The Stratified Thesis</a>
+        <a href="/jirl-formal-paper/#2-the-refinement-algebra">§2. The Refinement Algebra</a>
+        <a href="/jirl-formal-paper/#3-layers-and-stratified-development">§3. Layers &amp; Stratified Development</a>
+        <a href="/jirl-formal-paper/#4-verification-obligations">§4. Verification Obligations</a>
+        <a href="/jirl-formal-paper/#5-decomposition-and-interaction">§5. Decomposition &amp; Interaction</a>
+        <a href="/jirl-formal-paper/#6-the-development-protocol">§6. The Five-Gate Agent Protocol</a>
+        <a href="/jirl-formal-paper/#7-persistent-versions-and-evolution">§7. Persistent Versions &amp; Cutoff</a>
+        <a href="/jirl-formal-paper/#8-end-to-end-example-durable-acknowledgement">§8. Example: Durable Acknowledgement</a>
+        <a href="/jirl-formal-paper/#9-mechanization-target">§9. Mechanization Target</a>
+        <a href="/jirl-formal-paper/#10-related-work">§10–12. Related Work, Open Problems &amp; Conclusion</a>
       </div>
     </article>
   </div>
