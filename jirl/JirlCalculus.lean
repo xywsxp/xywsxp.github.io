@@ -715,4 +715,478 @@ theorem changed_leaf_requires_new_evidence :
 
 end Versioned
 
+/-! 6. Typed edges, admissible histories, and rank-founded DAG/frontier soundness.
+    This is the behavior-set kernel, not a proof of executable wiring, input
+    receptiveness, fairness, or nonempty initialization. Those obligations must
+    justify the operational inclusions supplied below. Natural ranks cover every
+    finite DAG without uniform depths; the proofs also allow infinite ranked DAGs. -/
+
+def forwardImage (f : X → Y) (P : Pred X) : Pred Y :=
+  fun y => ∃ x, P x ∧ f x = y
+
+theorem forwardImage_monotone (f : X → Y) {P Q : Pred X} (h : P ⊆ₚ Q) :
+    forwardImage f P ⊆ₚ forwardImage f Q := by
+  rintro y ⟨x, hx, he⟩
+  exact ⟨x, h x hx, he⟩
+
+theorem pullback_intersection_refinement (M : Machine X) (B : Machine Y)
+    (α : X → Y) (cost : Pred X) :
+    (M.observes ⊆ₚ fun x => pullback α B.observes x ∧ cost x) ↔
+      (forwardImage α M.observes ⊆ₚ B.observes ∧ Sat M cost) := by
+  constructor
+  · intro h
+    refine ⟨?_, fun x hx => (h x hx).2⟩
+    rintro y ⟨x, hx, he⟩
+    exact he ▸ (h x hx).1
+  · rintro ⟨ref, costSat⟩ x hx
+    exact ⟨ref (α x) ⟨x, hx, rfl⟩, costSat x hx⟩
+
+def mapMachine (α : X → Y) (M : Machine X) : Machine Y :=
+  ⟨forwardImage α M.observes⟩
+
+structure HConnector (ι : Type) (Slot : ι → Type) (Out : Type) where
+  compose : ((i : ι) → Machine (Slot i)) → Machine Out
+  precongruence : ∀ M A, (∀ i, Refines (M i) (A i)) →
+    Refines (compose M) (compose A)
+
+theorem heterogeneous_composition_with_cost {Child Slot : ι → Type}
+    (K : HConnector ι Slot Out) (α : (i : ι) → Child i → Slot i)
+    (M : (i : ι) → Machine (Child i)) (B : (i : ι) → Machine (Slot i))
+    (cost : (i : ι) → Pred (Child i)) (parent : Machine Out) (Φ : Pred Out)
+    (localRef : ∀ i, (M i).observes ⊆ₚ
+      fun x => pullback (α i) (B i).observes x ∧ cost i x)
+    (dec : Refines (K.compose B) parent) (sat : Sat parent Φ) :
+    Refines (K.compose (fun i => mapMachine (α i) (M i))) parent ∧
+    Sat (K.compose (fun i => mapMachine (α i) (M i))) Φ ∧
+    ∀ i, Sat (M i) (cost i) := by
+  have h := fun i => (pullback_intersection_refinement (M i) (B i) (α i) (cost i)).mp
+    (localRef i)
+  have ref := refines_trans
+    (K.precongruence (fun i => mapMachine (α i) (M i)) B (fun i => (h i).1)) dec
+  exact ⟨ref, satisfaction_transfer ref sat, fun i => (h i).2⟩
+
+/- The input-history projection must be available at this observation boundary.
+   If observations hide inputs, first use richer execution/history observations;
+   restriction cannot be recovered from an output-only observation predicate. -/
+def restrictInput (input : Obs → History) (A : Pred History) (M : Machine Obs) :
+    Machine Obs := ⟨fun o => M.observes o ∧ A (input o)⟩
+
+theorem restricted_refinement_sound {Child Slot History : ι → Type}
+    (K : HConnector ι Slot Out) (α : (i : ι) → Child i → Slot i)
+    (input : (i : ι) → Child i → History i) (A : (i : ι) → Pred (History i))
+    (M : (i : ι) → Machine (Child i)) (B : (i : ι) → Machine (Slot i))
+    (actual parent : Machine Out) (Φ : Pred Out)
+    (wire : Refines actual (K.compose
+      (fun i => mapMachine (α i) (restrictInput (input i) (A i) (M i)))))
+    (refs : ∀ i, Refines (mapMachine (α i) (restrictInput (input i) (A i) (M i))) (B i))
+    (dec : Refines (K.compose B) parent) (sat : Sat parent Φ) :
+    Refines actual parent ∧ Sat actual Φ := by
+  have h := refines_trans wire (refines_trans (K.precongruence _ B refs) dec)
+  exact ⟨h, satisfaction_transfer h sat⟩
+
+/- A trajectory witness constructs the restricted wiring premise rather than
+   silently assuming that unrestricted wiring can be used in its place. -/
+structure InputTrajectory (ι : Type) (Child : ι → Type) (Out Trace : Type) where
+  legal : Pred Trace
+  slice : (i : ι) → Trace → Child i
+  project : Trace → Out
+
+theorem admissible_trajectory_wiring {Child Slot History : ι → Type}
+    (T : InputTrajectory ι Child Out Trace) (K : HConnector ι Slot Out)
+    (α : (i : ι) → Child i → Slot i)
+    (input : (i : ι) → Child i → History i) (A : (i : ι) → Pred (History i))
+    (M : (i : ι) → Machine (Child i)) (actual : Machine Out)
+    (runs : ∀ o, actual.observes o → ∃ t, T.legal t ∧ T.project t = o ∧
+      ∀ i, (M i).observes (T.slice i t))
+    (supplies : ∀ t, T.legal t → ∀ i, A i (input i (T.slice i t)))
+    (adequate : ∀ B t, T.legal t →
+      (∀ i, (B i).observes (α i (T.slice i t))) →
+      (K.compose B).observes (T.project t)) :
+    Refines actual (K.compose
+      (fun i => mapMachine (α i) (restrictInput (input i) (A i) (M i)))) := by
+  intro o ho
+  obtain ⟨t, ht, he, hm⟩ := runs o ho
+  rw [← he]
+  apply adequate _ t ht
+  intro i
+  exact ⟨T.slice i t, ⟨hm i, supplies t ht i⟩, rfl⟩
+
+theorem restricted_need_not_be_global :
+    let M : Machine Bool := ⟨fun _ => True⟩
+    let B : Machine Bool := ⟨fun b => b = false⟩
+    Refines (mapMachine id (restrictInput id (fun b => b = false) M)) B ∧
+      ¬ Refines M B := by
+  constructor
+  · rintro y ⟨x, ⟨_, hx⟩, he⟩
+    exact he ▸ hx
+  · intro h
+    have bad := h true True.intro
+    cases bad
+
+theorem induction_by_rank (child : V → V → Prop) (rank : V → Nat)
+    (decreases : ∀ v c, child v c → rank c < rank v) (P : V → Prop)
+    (step : ∀ v, (∀ c, child v c → P c) → P v) : ∀ v, P v := by
+  have bounded : ∀ n v, rank v < n → P v := by
+    intro n
+    induction n with
+    | zero => intro v hv; omega
+    | succ n ih =>
+      intro v hv
+      apply step v
+      intro c hc
+      have hd := decreases v c hc
+      exact ih c (by omega)
+  intro v
+  exact bounded (rank v + 1) v (by omega)
+
+structure RefinementDAG (V : Type) where
+  Obs : V → Type
+  child : V → V → Prop
+  rank : V → Nat
+  decreases : ∀ v c, child v c → rank c < rank v
+  Slot : (v : V) → {c // child v c} → Type
+  edge : (v : V) → (c : {c // child v c}) → Obs c.val → Slot v c
+  connector : (v : V) → HConnector {c // child v c} (Slot v) (Obs v)
+  model : (v : V) → Machine (Obs v)
+  contract : (v : V) → (c : {c // child v c}) → Machine (Slot v c)
+  exec : (v : V) → Machine (Obs v)
+  property : (v : V) → Pred (Obs v)
+
+namespace RefinementDAG
+
+def Leaf (D : RefinementDAG V) (v : V) : Prop := ∀ c, ¬ D.child v c
+def Root (D : RefinementDAG V) (v : V) : Prop := ∀ p, ¬ D.child p v
+def compose (D : RefinementDAG V) (M : (v : V) → Machine (D.Obs v)) (v : V) :=
+  (D.connector v).compose (fun c => mapMachine (D.edge v c) (M c.val))
+
+theorem compose_monotone (D : RefinementDAG V) (M N : (v : V) → Machine (D.Obs v))
+    (v : V) (h : ∀ c, D.child v c → Refines (M c) (N c)) :
+    Refines (D.compose M v) (D.compose N v) :=
+  (D.connector v).precongruence _ _ (fun c => forwardImage_monotone _ (h c.val c.property))
+
+def EdgeRefinement (D : RefinementDAG V) (v : V) : Prop :=
+  ∀ c, Refines (mapMachine (D.edge v c) (D.model c.val)) (D.contract v c)
+def Decomposition (D : RefinementDAG V) (v : V) : Prop :=
+  Refines ((D.connector v).compose (D.contract v)) (D.model v)
+
+theorem model_composition (D : RefinementDAG V) (v : V)
+    (edge : D.EdgeRefinement v) (dec : D.Decomposition v) :
+    Refines (D.compose D.model v) (D.model v) :=
+  refines_trans ((D.connector v).precongruence _ _ edge) dec
+
+theorem dag_soundness_by_rank (D : RefinementDAG V)
+    (leaf : ∀ v, D.Leaf v → Refines (D.exec v) (D.model v))
+    (wire : ∀ v, ¬ D.Leaf v → Refines (D.exec v) (D.compose D.exec v))
+    (edge : ∀ v, D.EdgeRefinement v)
+    (dec : ∀ v, ¬ D.Leaf v → D.Decomposition v)
+    (sat : ∀ v, Sat (D.model v) (D.property v)) :
+    ∀ v, Refines (D.exec v) (D.model v) ∧ Sat (D.exec v) (D.property v) := by
+  classical
+  apply induction_by_rank D.child D.rank D.decreases
+  intro v ih
+  have ref : Refines (D.exec v) (D.model v) := by
+    by_cases hl : D.Leaf v
+    · exact leaf v hl
+    · exact refines_trans (wire v hl)
+        (refines_trans (D.compose_monotone D.exec D.model v (fun c hc => (ih c hc).1))
+          (D.model_composition v (edge v) (dec v hl)))
+  exact ⟨ref, satisfaction_transfer ref (sat v)⟩
+
+/- A path records every visited vertex, including the starting vertex and leaf.
+   Coverage quantifies over paths, not merely over reachable leaf endpoints. -/
+inductive LeafPath (D : RefinementDAG V) : V → List V → Prop where
+  | leaf {v} : D.Leaf v → LeafPath D v [v]
+  | step {v c path} : D.child v c → LeafPath D c path → LeafPath D v (v :: path)
+
+def AllPathsHit (D : RefinementDAG V) (C : Pred V) (v : V) : Prop :=
+  ∀ path, D.LeafPath v path → ∃ u, u ∈ path ∧ C u
+
+/- An equivalent local no-bypass certificate. The non-leaf premise prevents
+   an empty family of children from certifying an uncovered executable leaf. -/
+inductive Covered (D : RefinementDAG V) (C : Pred V) : V → Prop where
+  | cut {v} : C v → Covered D C v
+  | above {v} : ¬ C v → ¬ D.Leaf v →
+      (∀ c, D.child v c → Covered D C c) → Covered D C v
+
+theorem covered_of_all_paths_hit (D : RefinementDAG V) (C : Pred V) :
+    ∀ v, D.AllPathsHit C v → D.Covered C v := by
+  classical
+  apply induction_by_rank D.child D.rank D.decreases
+  intro v ih hit
+  by_cases hc : C v
+  · exact Covered.cut hc
+  · refine Covered.above hc ?_ ?_
+    · intro hl
+      obtain ⟨u, hu, cu⟩ := hit [v] (LeafPath.leaf hl)
+      have he : u = v := by simpa using hu
+      exact hc (he ▸ cu)
+    · intro c hvc
+      apply ih c hvc
+      intro path hp
+      obtain ⟨u, hu, cu⟩ := hit (v :: path) (LeafPath.step hvc hp)
+      rcases List.mem_cons.mp hu with he | hu
+      · exact False.elim (hc (he ▸ cu))
+      · exact ⟨u, hu, cu⟩
+
+theorem leafPath_head (D : RefinementDAG V) {v : V} {path : List V}
+    (hp : D.LeafPath v path) : v ∈ path := by
+  cases hp <;> simp
+
+theorem all_paths_hit_of_covered (D : RefinementDAG V) (C : Pred V)
+    {v : V} (covered : D.Covered C v) : D.AllPathsHit C v := by
+  induction covered with
+  | cut hc => intro path hp; exact ⟨_, D.leafPath_head hp, hc⟩
+  | above _ nonleaf _ ih =>
+    intro path hp
+    cases hp with
+    | leaf hl => exact False.elim (nonleaf hl)
+    | step hc hp =>
+      obtain ⟨u, hu, cu⟩ := ih _ hc _ hp
+      exact ⟨u, List.mem_cons_of_mem _ hu, cu⟩
+
+inductive Reach (D : RefinementDAG V) : V → V → Prop where
+  | refl (v) : Reach D v v
+  | step {v c u} : D.child v c → Reach D c u → Reach D v u
+
+def Anc (D : RefinementDAG V) (C : Pred V) : Pred V :=
+  fun v => ∃ u, C u ∧ D.Reach v u
+def Desc (D : RefinementDAG V) (C : Pred V) : Pred V :=
+  fun v => ∃ u, C u ∧ D.Reach u v
+
+structure RootCoveringCut (D : RefinementDAG V) (C : Pred V) : Prop where
+  antichain : ∀ u v, C u → C v → D.Reach u v → u = v
+  covers : ∀ r, D.Root r → D.AllPathsHit C r
+
+/- Total recursive extension of H_C to all vertices. Only covered vertices are
+   used by the theorem; values below the cut or on uncovered branches are not
+   claimed sound. No executable behavior is used in this definition. -/
+noncomputable def cutModel (D : RefinementDAG V) (C : Pred V) (v : V) :
+    Machine (D.Obs v) := by
+  classical
+  exact if C v then D.model v else
+    (D.connector v).compose (fun c => mapMachine (D.edge v c) (D.cutModel C c.val))
+termination_by D.rank v
+decreasing_by exact D.decreases v c.val c.property
+
+theorem cutModel_at_cut (D : RefinementDAG V) (C : Pred V) {v : V} (hc : C v) :
+    D.cutModel C v = D.model v := by
+  rw [cutModel]; simp [hc]
+
+theorem cutModel_above (D : RefinementDAG V) (C : Pred V) {v : V} (hc : ¬ C v) :
+    D.cutModel C v = D.compose (D.cutModel C) v := by
+  rw [cutModel]; simp [hc, compose]
+
+theorem covered_in_anc (D : RefinementDAG V) (C : Pred V) {v : V}
+    (covered : D.Covered C v) : D.Anc C v := by
+  classical
+  induction covered with
+  | cut hc => exact ⟨_, hc, Reach.refl _⟩
+  | @above v _ nonleaf _ ih =>
+    have existsChild : ∃ c, D.child v c := by
+      simpa [Leaf] using nonleaf
+    obtain ⟨c, hc⟩ := existsChild
+    obtain ⟨u, cu, reach⟩ := ih c hc
+    exact ⟨u, cu, Reach.step hc reach⟩
+
+/- Validity is required only above the frontier; realization below it is
+   summarized by the explicit boundary premise, not by whole-DAG validity. -/
+theorem frontier_region_soundness (D : RefinementDAG V) (C : Pred V)
+    (boundary : ∀ u, C u → Refines (D.exec u) (D.model u))
+    (wire : ∀ v, D.Anc C v → ¬ C v → Refines (D.exec v) (D.compose D.exec v))
+    (edge : ∀ v, D.Anc C v → ¬ C v → D.EdgeRefinement v)
+    (dec : ∀ v, D.Anc C v → ¬ C v → D.Decomposition v) :
+    ∀ v, D.Covered C v →
+      Refines (D.exec v) (D.cutModel C v) ∧ Refines (D.cutModel C v) (D.model v) := by
+  apply induction_by_rank D.child D.rank D.decreases
+  intro v ih covered
+  have anc := D.covered_in_anc C covered
+  cases covered with
+  | cut hc => rw [D.cutModel_at_cut C hc]; exact ⟨boundary v hc, refines_refl _⟩
+  | above hc _ children =>
+    rw [D.cutModel_above C hc]
+    have childProof := fun c h => ih c h (children c h)
+    exact ⟨refines_trans (wire v anc hc)
+        (D.compose_monotone D.exec (D.cutModel C) v (fun c h => (childProof c h).1)),
+      refines_trans (D.compose_monotone (D.cutModel C) D.model v
+        (fun c h => (childProof c h).2))
+        (D.model_composition v (edge v anc hc) (dec v anc hc))⟩
+
+theorem frontier_cut_soundness (D : RefinementDAG V) (C : Pred V)
+    (cut : D.RootCoveringCut C)
+    (boundary : ∀ u, C u → Refines (D.exec u) (D.model u))
+    (wire : ∀ v, D.Anc C v → ¬ C v → Refines (D.exec v) (D.compose D.exec v))
+    (edge : ∀ v, D.Anc C v → ¬ C v → D.EdgeRefinement v)
+    (dec : ∀ v, D.Anc C v → ¬ C v → D.Decomposition v)
+    (sat : ∀ r, D.Root r → Sat (D.model r) (D.property r)) :
+    ∀ r, D.Root r → Refines (D.exec r) (D.cutModel C r) ∧
+      Refines (D.cutModel C r) (D.model r) ∧ Sat (D.model r) (D.property r) := by
+  intro r hr
+  have h := D.frontier_region_soundness C boundary wire edge dec r
+    (D.covered_of_all_paths_hit C r (cut.covers r hr))
+  exact ⟨h.1, h.2, sat r hr⟩
+
+end RefinementDAG
+
+/- Concrete regressions: a shared leaf reached at unequal depths, a bypassed
+   cut, and the distinction between a one-step view and a closure interval. -/
+namespace DAGWitness
+
+inductive Cell where | root | left | middle | leaf deriving DecidableEq
+open Cell RefinementDAG
+
+def child : Cell → Cell → Prop
+  | root, left => True
+  | root, leaf => True
+  | left, middle => True
+  | middle, leaf => True
+  | _, _ => False
+
+def rank : Cell → Nat
+  | root => 3
+  | left => 2
+  | middle => 1
+  | leaf => 0
+
+def connector (v : Cell) : HConnector {c // child v c} (fun _ => Bool) Bool where
+  compose M := ⟨fun b => b = false ∨ ∃ c, (M c).observes b⟩
+  precongruence _ _ refs := by
+    intro b hb
+    rcases hb with hb | ⟨c, hc⟩
+    · exact Or.inl hb
+    · exact Or.inr ⟨c, refs c b hc⟩
+
+def dag : RefinementDAG Cell where
+  Obs _ := Bool
+  child := child
+  rank := rank
+  decreases v c hc := by cases v <;> cases c <;> simp_all [child, rank]
+  Slot _ _ := Bool
+  edge _ _ := id
+  connector := connector
+  model _ := ⟨fun b => b = false⟩
+  contract _ _ := ⟨fun b => b = false⟩
+  exec _ := ⟨fun b => b = false⟩
+  property _ b := b = false
+
+theorem edges (v : Cell) : dag.EdgeRefinement v := by
+  intro c b hb
+  rcases hb with ⟨x, hx, he⟩
+  exact he ▸ hx
+
+theorem decomposition (v : Cell) : dag.Decomposition v := by
+  intro b hb
+  rcases hb with hb | ⟨c, hc⟩
+  · exact hb
+  · exact hc
+
+theorem wiring (v : Cell) : Refines (dag.exec v) (dag.compose dag.exec v) :=
+  fun _ hb => Or.inl hb
+
+theorem unequal_depth_shared_dag_sound :
+    ∀ v, Refines (dag.exec v) (dag.model v) ∧ Sat (dag.exec v) (dag.property v) :=
+  dag.dag_soundness_by_rank (fun _ _ => refines_refl _)
+    (fun v _ => wiring v) edges (fun v _ => decomposition v) (fun _ => subset_refl _)
+
+def C : Pred Cell := fun v => v = leaf
+
+theorem covered : ∀ v, dag.Covered C v := by
+  have hl : dag.Covered C leaf := Covered.cut rfl
+  have hm : dag.Covered C middle := by
+    apply Covered.above (by simp [C]) (fun h => h leaf True.intro)
+    intro c hc
+    cases c <;> simp_all [dag, child]
+  have ha : dag.Covered C left := by
+    apply Covered.above (by simp [C]) (fun h => h middle True.intro)
+    intro c hc
+    cases c <;> simp_all [dag, child]
+  intro v
+  cases v with
+  | leaf => exact hl
+  | middle => exact hm
+  | left => exact ha
+  | root =>
+    apply Covered.above (by simp [C]) (fun h => h leaf True.intro)
+    intro c hc
+    cases c <;> simp_all [dag, child]
+
+theorem leaf_cut : dag.RootCoveringCut C where
+  antichain _ _ hu hv _ := hu.trans hv.symm
+  covers r _ := dag.all_paths_hit_of_covered C (covered r)
+
+theorem concrete_frontier_chain :
+    Refines (dag.exec root) (dag.cutModel C root) ∧
+    Refines (dag.cutModel C root) (dag.model root) ∧ Sat (dag.model root) (dag.property root) := by
+  apply dag.frontier_cut_soundness C leaf_cut (fun _ _ => refines_refl _)
+    (fun v _ _ => wiring v) (fun v _ _ => edges v)
+    (fun v _ _ => decomposition v) (fun _ _ => subset_refl _) root
+  intro p hp
+  cases p <;> exact hp
+
+theorem bypass_not_root_covering : ¬ dag.RootCoveringCut (fun v => v = left) := by
+  intro cut
+  have hr : dag.Root root := by intro p hp; cases p <;> exact hp
+  have hl : dag.Leaf leaf := by intro c hc; cases c <;> exact hc
+  have path : dag.LeafPath root [root, leaf] :=
+    LeafPath.step (c := leaf) True.intro (LeafPath.leaf hl)
+  obtain ⟨u, hu, he⟩ := cut.covers root hr [root, leaf] path
+  subst u
+  simp at hu
+
+theorem closure_interval_is_not_single_step :
+    dag.Desc (fun v => v = root) middle ∧
+    dag.Anc (fun c => dag.child root c) middle ∧
+    ¬ (middle = root ∨ dag.child root middle) := by
+  refine ⟨⟨root, rfl, Reach.step (c := left) True.intro
+    (Reach.step (c := middle) True.intro (Reach.refl middle))⟩,
+    ⟨leaf, True.intro, Reach.step (c := leaf) True.intro (Reach.refl leaf)⟩, ?_⟩
+  simp [dag, child]
+
+end DAGWitness
+
+namespace EdgeWitness
+
+def pass : HConnector Unit (fun _ => Bool) Bool where
+  compose M := M ()
+  precongruence _ _ refs := refs ()
+
+def fast : Machine (Bool × Nat) := ⟨fun o => o.1 = false ∧ o.2 ≤ 3⟩
+def contract : Machine Bool := ⟨fun b => b = false⟩
+
+/- Projection forgets cost. Parent behavior and child-local cost survive, but
+   the conclusion deliberately does not invent a cost coordinate at the parent. -/
+theorem heterogeneous_cost_vertical :
+    fast.observes (false, 2) ∧
+    Sat (pass.compose (fun _ => mapMachine Prod.fst fast)) (fun b => b = false) ∧
+    Sat fast (fun o => o.2 ≤ 3) := by
+  have h := heterogeneous_composition_with_cost pass (fun _ => Prod.fst)
+    (fun _ => fast) (fun _ => contract) (fun _ o => o.2 ≤ 3)
+    contract (fun b => b = false) (fun _ _ ho => ho)
+    (refines_refl _) (subset_refl _)
+  exact ⟨⟨rfl, by decide⟩, h.2.1, h.2.2 ()⟩
+
+def wide : Machine Bool := ⟨fun _ => True⟩
+def admitted : Pred Bool := fun b => b = false
+def trajectory : InputTrajectory Unit (fun _ => Bool) Bool Bool :=
+  ⟨admitted, fun _ t => t, id⟩
+
+/- A genuinely wider-domain library accepts true as well; the connector sends
+   only false. Legal joint trajectories establish the restriction premise. -/
+theorem restricted_input_vertical :
+    wide.observes true ∧ Refines contract contract ∧ Sat contract admitted := by
+  have wire := admissible_trajectory_wiring trajectory pass (fun _ => id)
+    (fun _ => id) (fun _ => admitted) (fun _ => wide) contract
+    (fun o ho => ⟨o, ho, rfl, fun _ => True.intro⟩)
+    (fun _ ht _ => ht) (fun _ _ _ slices => slices ())
+  have refs : ∀ i : Unit,
+      Refines (mapMachine id (restrictInput id admitted wide)) contract := by
+    intro _ y hy
+    obtain ⟨x, ⟨_, hx⟩, he⟩ := hy
+    exact he ▸ hx
+  have h := restricted_refinement_sound pass (fun _ => id)
+    (fun _ => id) (fun _ => admitted) (fun _ => wide) (fun _ => contract)
+    contract contract admitted wire refs (refines_refl _) (subset_refl _)
+  exact ⟨True.intro, h⟩
+
+end EdgeWitness
+
 end Jirl
