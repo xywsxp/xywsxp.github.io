@@ -558,4 +558,161 @@ theorem upward_strengthening_preserves_dec (K : Connector ι Obs)
     (dec : Dec K contracts parent) : Dec K stronger parent :=
   refines_trans (K.precongruence stronger contracts strengthening) dec
 
+/-! 5. Contextual projection and incremental validity by exact obligation reuse.
+    These proofs concern behavioral obligations. Structural, profile and protected
+    preservation conditions remain separate premises unless represented in Req. -/
+
+def ContextualProjection (ΔP : Prop) (K : Connector ι Obs)
+    (contracts : ι → Machine Obs) (R : Pred Obs) : Prop :=
+  ΔP → Sat (K.compose contracts) R
+
+theorem contextual_projection_sound {ΔP : Prop} (K : Connector ι Obs)
+    (children contracts : ι → Machine Obs) (R : Pred Obs)
+    (context : ΔP) (projection : ContextualProjection ΔP K contracts R)
+    (refs : ∀ i, Refines (children i) (contracts i)) :
+    Sat (K.compose children) R :=
+  satisfaction_transfer (K.precongruence children contracts refs) (projection context)
+
+def passThroughConnector : Connector Unit Obs where
+  compose children := children ()
+  precongruence _ _ refs := refs ()
+
+theorem pass_through_projection (ΔP : Prop) (R : Pred Obs) :
+    ContextualProjection ΔP passThroughConnector (fun _ => ⟨R⟩) R :=
+  fun _ => subset_refl R
+
+/- Denote does not depend on the version: retaining a label while changing its
+   meaning is not obligation reuse. No decidable equality or finite inventory
+   is needed for the logical frame theorem. -/
+def Valid (Denote : Obl → Prop) (Req : Dev → Obl → Prop) (G : Dev) : Prop :=
+  ∀ q, Req G q → Denote q
+
+theorem validity_by_reuse {Denote : Obl → Prop} {Req : Dev → Obl → Prop}
+    {G G' : Dev} (old : Valid Denote Req G)
+    (covered : ∀ q, Req G' q → Req G q ∨ Denote q) : Valid Denote Req G' :=
+  fun q hq => (covered q hq).elim (old q) id
+
+theorem incremental_frame_cutoff {Denote : Obl → Prop} {Req : Dev → Obl → Prop}
+    {G G' : Dev} (old : Valid Denote Req G)
+    (changed : ∀ q, Req G' q → ¬ Req G q → Denote q) : Valid Denote Req G' := by
+  classical
+  apply validity_by_reuse old
+  intro q hq
+  by_cases previous : Req G q
+  · exact Or.inl previous
+  · exact Or.inr (changed q hq previous)
+
+namespace Versioned
+
+/- A finite snapshot of scoped obligations, not a formalization of the entire
+   development graph. All terms needed by each inclusion are carried directly.
+   This specialization uses one observation space and identity observation maps;
+   concrete wiring adequacy and semantic-profile admissibility are not proved. -/
+inductive Obligation (Cell ι Obs : Type) where
+  | sat (cell : Cell) (model : Machine Obs) (property : Pred Obs)
+  | dec (cell : Cell) (connector : Connector ι Obs)
+      (contracts : ι → Machine Obs) (model : Machine Obs)
+  | child (cell : Cell) (slot : ι) (model contract : Machine Obs)
+  | impl (cell : Cell) (program model : Machine Obs)
+
+def Denote : Obligation Cell ι Obs → Prop
+  | .sat _ model property => Sat model property
+  | .dec _ connector contracts model => Dec connector contracts model
+  | .child _ _ model contract => Refines model contract
+  | .impl _ program model => Refines program model
+
+abbrev Snapshot (Cell ι Obs : Type) := List (Obligation Cell ι Obs)
+
+def Req (G : Snapshot Cell ι Obs) (q : Obligation Cell ι Obs) : Prop := q ∈ G
+
+theorem snapshot_frame_cutoff (versions : Nat → Snapshot Cell ι Obs) (t : Nat)
+    (old : Valid Denote Req (versions t))
+    (changed : ∀ q, q ∈ versions (t + 1) → q ∉ versions t → Denote q) :
+    Valid Denote Req (versions (t + 1)) :=
+  incremental_frame_cutoff old changed
+
+private def childSlots (n : Nat) : List (Fin n) :=
+  (List.range n).attach.map (fun j => ⟨j.val, List.mem_range.mp j.property⟩)
+
+private theorem mem_childSlots (i : Fin n) : i ∈ childSlots n := by
+  apply List.mem_map.mpr
+  exact ⟨⟨i.val, List.mem_range.mpr i.isLt⟩, List.mem_attach _ _, rfl⟩
+
+def nodeRequirements (cell : Cell) (v : Node (Fin n) Obs Unit Unit) :
+    Snapshot Cell (Fin n) Obs :=
+  [.sat cell v.parent v.property, .dec cell v.connector v.contracts v.parent] ++
+    (childSlots n).map (fun i => .child cell i (v.children i) (v.contracts i))
+
+/- Updating a child changes neither the exact Sat/Dec propositions nor the
+   unchanged siblings' propositions. Membership gives direct proof reuse. -/
+theorem node_obligations_reused (cell : Cell) (v : Node (Fin n) Obs Unit Unit)
+    (i : Fin n) (replacement : Machine Obs) :
+    let next := updateChild v i replacement ()
+    Obligation.sat cell next.parent next.property ∈ nodeRequirements cell v ∧
+    Obligation.dec cell next.connector next.contracts next.parent ∈ nodeRequirements cell v ∧
+    ∀ j, j ≠ i →
+      Obligation.child cell j (next.children j) (next.contracts j) ∈ nodeRequirements cell v := by
+  dsimp only
+  refine ⟨?_, ?_, ?_⟩
+  · simp [nodeRequirements, updateChild]
+  · simp [nodeRequirements, updateChild]
+  · intro j hj
+    apply List.mem_append_right
+    apply List.mem_map.mpr
+    exact ⟨j, mem_childSlots j, by simp [updateChild, update, hj]⟩
+
+/- Concrete replacement: old parent and sibling proofs are reused, whereas the
+   changed child and the appended leaf implementation need their own proofs.
+   The finite snapshot theorem also permits arbitrary lists of added/removed
+   node requirements, without imposing a one-to-one node correspondence. -/
+theorem node_update_with_leaf_valid (cell leaf : Cell)
+    (v : Node (Fin n) Obs Unit Unit) (i : Fin n)
+    (replacement program : Machine Obs)
+    (old : Valid Denote Req (nodeRequirements cell v))
+    (newRef : Refines replacement (v.contracts i))
+    (newImpl : Refines program replacement) :
+    Valid Denote Req (nodeRequirements cell (updateChild v i replacement ()) ++
+      [.impl leaf program replacement]) := by
+  apply incremental_frame_cutoff old
+  intro q hq fresh
+  have reused := node_obligations_reused cell v i replacement
+  rcases List.mem_append.mp hq with hn | hl
+  · simp only [nodeRequirements, List.mem_append, List.mem_cons, List.not_mem_nil,
+      or_false, List.mem_map] at hn
+    rcases hn with (hs | hd) | ⟨j, _, hj⟩
+    · subst q
+      exact False.elim (fresh reused.1)
+    · subst q
+      exact False.elim (fresh reused.2.1)
+    · subst q
+      by_cases same : j = i
+      · subst j
+        simpa [Denote, updateChild, update] using newRef
+      · exact False.elim (fresh (reused.2.2 j same))
+  · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+    subst q
+    exact newImpl
+
+/- A nonempty valid snapshot does not validate a changed implementation for
+   free: a program returning true violates a contract allowing only false. -/
+theorem changed_leaf_requires_new_evidence :
+    let contract : Machine Bool := ⟨fun b => b = false⟩
+    let replacement : Machine Bool := ⟨fun b => b = true⟩
+    let old : Snapshot Unit Unit Bool := [.impl () contract contract]
+    let next : Snapshot Unit Unit Bool := [.impl () replacement contract]
+    Valid Denote Req old ∧ ¬ Valid Denote Req next := by
+  dsimp only
+  constructor
+  · intro q hq
+    simp only [Req, List.mem_cons, List.not_mem_nil, or_false] at hq
+    subst q
+    exact refines_refl _
+  · intro valid
+    have bad := valid (.impl () ⟨fun b => b = true⟩ ⟨fun b => b = false⟩)
+      (by simp [Req])
+    have impossible : true = false := bad true rfl
+    cases impossible
+
+end Versioned
+
 end Jirl
