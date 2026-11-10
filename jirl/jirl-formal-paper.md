@@ -229,7 +229,7 @@ $$
 \tag{NS}
 $$
 
-Here $\mathbf{F}$ denotes eventually and $\mathbf{G}$ denotes globally along execution path $\pi$. The second disjunct requires that the execution eventually settle into a persistent genuine external wait $e$ that belongs to the contract-permitted set $E_d^\infty$.
+Here $\mathbf{F}$ denotes eventually and $\mathbf{G}$ denotes globally along execution path $\pi$. The second disjunct requires that the execution eventually settle into a persistent genuine external wait $e$ that belongs to the contract-permitted set $E_d^\infty$. In this selected profile, placing $\exists e\in E_d^\infty$ outside $\mathbf{F}\mathbf{G}$ requires an unresolved execution to stabilize at one specific external prerequisite instance rather than cycling among transient waits; services whose contracts admit unbounded external retry polling require a corresponding multi-wait progress profile.
 
 The consequences of $\mathrm{NS}$ are precise:
 - A permitted terminal outcome discharges the duty. A persistent external wait does **not** discharge it; rather, the accepted contract permits that unresolved execution only at a declared member of $E_d^\infty$.
@@ -623,7 +623,7 @@ When introducing a modification, developers identify the target requirement and 
 
 An implementation author may modify internal component behavior while preserving incoming slot contracts. A slot revision, an intent revision, and an environmental assumption change are distinct architectural actions requiring separate authorization. Editing a test to match an implementation does not establish the original requirement.
 
-When an implementation defect is identified, it is repaired directly within the existing component boundary. Governing revisions may proceed under an applicable standing delegation; notification of proof success does not by itself constitute authorization. Routine engineering decisions are resolved within authorized grants. Accepted informal or unresolved intent remains governing; if a material conflict or ambiguity arises in accepted system requirements, only the affected action is paused and escalated for an explicit architectural decision, while independent authorized work continues. Once a protected revision is authorized, all resulting validity obligations still apply.
+When an implementation defect is identified, it is repaired directly within the existing component boundary. Governing revisions may proceed under an applicable standing delegation; notification of proof success does not by itself constitute authorization. Routine engineering decisions are resolved within authorized grants. Accepted informal or unresolved intent remains governing: if a material conflict or ambiguity arises in accepted system requirements, only the affected action is paused and escalated for an explicit architectural decision, while independent authorized work continues; until every accepted commitment governing a target scope is formalized into $\operatorname{Prot}(G)$ and discharged (or explicitly disposed by an authorized decision), publication of that scope remains `Unresolved`. Once a protected revision is authorized, all resulting validity obligations still apply.
 
 ## 7. Versioned Evolution and Incremental Frame Cutoff
 
@@ -665,7 +665,7 @@ $$
 \tag{Frame partition}
 $$
 
-Here $\operatorname{Applicable}(e,q,G_{t+1})$ asserts that prior valid evidence artifact $e$ establishes typed claim $q$ under the new candidate's environment, either through identical typed operands and uninvalidated context or via an explicit, sound proof-transport result. Stable obligation names or display IDs alone do not establish applicability: an obligation whose operand changed under the same name belongs to $\operatorname{Check}_{t\to t+1}$.
+Here $\operatorname{Applicable}(e,q,G_{t+1})$ asserts that prior valid evidence artifact $e$ establishes typed claim $q$ under the new candidate's environment, either through identical typed operands and uninvalidated context or via an explicit, sound proof-transport result. Stable obligation names or display IDs alone do not establish applicability: an obligation whose operand changed under the same name without an applicable proof-transport result belongs to $\operatorname{Check}_{t\to t+1}$.
 
 **Theorem 3 (Incremental Frame).** Suppose every claim in $\operatorname{Reuse}_{t\to t+1}$ has applicable evidence carried forward from $G_t$, every claim in $\operatorname{Check}_{t\to t+1}$ is discharged with new valid evidence, and candidate $G_{t+1}$ satisfies all structural, context, admission, integration, and protected-preservation conditions. Then all required claims of the selected profile in $G_{t+1}$ have valid applicable evidence. Its safety subfamily satisfies Conditions 1–6, so Theorem 1 holds under the new dependency context; any separately required operational claims hold by their respective evidence.
 
@@ -925,7 +925,7 @@ Premise $H_{\mathrm{exec}}^0$ is a per-transition weak-fairness condition over t
 1. **Finite owned paths:** Because the owned control graph is finite and acyclic, the system cannot execute infinitely many boundary-owned steps for a single request.
 2. **Exclusion of internal hangs:** Under $H_{\mathrm{exec}}^0$, execution cannot remain permanently in a pending non-wait configuration, nor can it abandon an undrained pending output buffer.
 3. **Write resolution:** By premise $H_{\mathrm{write}}$, the substrate shell eventually emits `write_ok(i)`, ending the transient write wait. The subsequent finite owned continuation issues `Cmd.fsync(i)`.
-4. **Outcome or inspectable flush wait:** If the substrate shell resolves the flush with `fsync_ok(i)` or `fsync_fail(i)`, the remaining finite owned suffix executes under $H_{\mathrm{exec}}^0$, emitting root `ack(i)` or root `fail(i)` ($\mathbf{F} D_d$). Otherwise, the execution remains permanently in configuration $hPending(i)$, satisfying $W_{d,\mathrm{flush}(i)}$. Because $\mathrm{flush}(i) \in E_d^\infty$, this execution satisfies $\exists e\in E_d^\infty.\ \mathbf{F}\mathbf{G} W_{d,e}$. Persistent write waiting is excluded by $H_{\mathrm{write}}$.
+4. **Outcome or inspectable flush wait:** If the substrate shell resolves the flush with `fsync_ok(i)` or `fsync_fail(i)`, the remaining finite owned suffix executes under $H_{\mathrm{exec}}^0$, emitting root `ack(i)` or root `fail(i)` ($\mathbf{F} D_d$). Otherwise, when the substrate emits no flush response, no boundary-owned transition in $\operatorname{Owned}_0$ is enabled (even though the static shell graph has outgoing response edges from $hPending(i)$), so the complete execution stutters indefinitely in configuration $hPending(i)$, satisfying $W_{d,\mathrm{flush}(i)}$. Because $\mathrm{flush}(i) \in E_d^\infty$, this execution satisfies $\exists e\in E_d^\infty.\ \mathbf{F}\mathbf{G} W_{d,e}$. Persistent write waiting is excluded by $H_{\mathrm{write}}$.
 
 Therefore, every complete execution satisfies $\mathbf{F} D_d \lor \exists e\in E_d^\infty.\ \mathbf{F}\mathbf{G} W_{d,e}$, discharging condition $(\mathrm{NS})$.
 
