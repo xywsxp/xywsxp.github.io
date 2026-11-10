@@ -8,6 +8,7 @@ Public site: **<https://xywsxp.github.io/>**
 - **Typeset PDF Edition**: **<https://xywsxp.github.io/jirl-formal-paper.pdf>**
 - **Editable Source & Reference Artifacts (`jirl/`)**:
   - [`jirl/jirl-formal-paper.md`](jirl/jirl-formal-paper.md) — Full Markdown source of the report.
+  - [`jirl/jirl-revision-probes.mjs`](jirl/jirl-revision-probes.mjs) & [`jirl/jirl-revision-probes.jsonl`](jirl/jirl-revision-probes.jsonl) — Finite revision witnesses (AR-P1..AR-P7).
   - [`jirl/jirl-reference-model.ts`](jirl/jirl-reference-model.ts) & [`jirl/jirl-paper-probes.mjs`](jirl/jirl-paper-probes.mjs) — Executable reference model and finite witnesses.
 
 ### How to Collaborate & Annotate
