@@ -6,9 +6,8 @@ Public site: **<https://xywsxp.github.io/>**
 
 - **Interactive Reading & Inline Annotation Edition**: **<https://xywsxp.github.io/jirl-formal-paper/>**
 - **Typeset PDF Edition**: **<https://xywsxp.github.io/jirl-formal-paper.pdf>**
-- **Editable Source & Mechanization Artifacts (`jirl/`)**:
-  - [`jirl/jirl-formal-paper.md`](jirl/jirl-formal-paper.md) — Full Markdown source of the report (1,532 lines).
-  - [`jirl/JirlCalculus.lean`](jirl/JirlCalculus.lean) — Checked 1,192-line Lean 4 mechanization of the refinement-DAG calculus, cut frontier soundness, and incremental frame cutoff theorem.
+- **Editable Source & Reference Artifacts (`jirl/`)**:
+  - [`jirl/jirl-formal-paper.md`](jirl/jirl-formal-paper.md) — Full Markdown source of the report.
   - [`jirl/jirl-reference-model.ts`](jirl/jirl-reference-model.ts) & [`jirl/jirl-paper-probes.mjs`](jirl/jirl-paper-probes.mjs) — Executable reference model and finite witnesses.
 
 ### How to Collaborate & Annotate

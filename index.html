@@ -94,49 +94,45 @@
       color: var(--accent);
     }
     .subtitle {
-      margin: 0 0 1.15rem;
+      margin: 0 0 1.1rem;
       color: var(--muted);
+      font-size: 1.05rem;
       font-weight: 500;
-      font-size: 1.06rem;
     }
     .abstract {
-      margin: 0 0 1.4rem;
+      margin: 0 0 1.5rem;
       color: var(--text);
-      font-size: 0.96rem;
+      font-size: 0.98rem;
     }
     .actions {
       display: flex;
       flex-wrap: wrap;
       gap: 0.65rem;
-      margin-top: 1.25rem;
+      margin-bottom: 1.5rem;
     }
     .btn {
       display: inline-flex;
       align-items: center;
-      gap: 0.4rem;
-      padding: 0.52rem 1rem;
+      gap: 0.35rem;
+      padding: 0.5rem 0.95rem;
       border-radius: 0.55rem;
-      font-size: 0.9rem;
-      font-weight: 600;
-      text-decoration: none;
       border: 1px solid var(--border);
       background: var(--chip-bg);
       color: var(--text);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
     }
     .btn.primary {
       background: var(--accent);
       border-color: var(--accent);
-      color: #fff;
-    }
-    .btn:hover {
-      opacity: 0.92;
+      color: #ffffff;
     }
     .toc-preview {
-      margin-top: 1.5rem;
-      padding-top: 1.25rem;
       border-top: 1px solid var(--border);
+      padding-top: 1.25rem;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
       gap: 0.5rem 1.25rem;
       font-size: 0.88rem;
     }
@@ -146,7 +142,6 @@
     }
     .toc-preview a:hover {
       color: var(--accent);
-      text-decoration: underline;
     }
   </style>
 </head>
@@ -154,37 +149,34 @@
   <div class="container">
     <header>
       <div>
-        <h1>xywsxp · Research &amp; Formal Specifications</h1>
-        <p>Working papers, mechanized refinement-DAG calculi, and collaborative design specifications.</p>
+        <h1>xywsxp · Formal Specifications &amp; Systems Research</h1>
+        <p>Working papers, formal verification calculi, and collaborative design specifications.</p>
       </div>
-      <a class="btn" href="https://github.com/xywsxp/xywsxp.github.io" target="_blank" rel="noopener">🐙 GitHub Repository</a>
     </header>
-
     <article class="card">
       <span class="eyebrow">Formal Technical Report · November 2026 · Open for Collaborative Review</span>
       <h2><a href="/jirl-formal-paper/">Refinement-DAG Software Development</a></h2>
       <p class="subtitle">A Calculus of Verified Behavior Inclusions for Agent-Authored Systems</p>
       <p class="abstract">
-        Autonomous coding agents fail in three recurring ways: they leap from a requirement to code and invent the missing design; they lose the rationale for load-bearing choices and later weaken tests to make builds pass; and they leave humans with no trustworthy intermediate view of what the system does. This report presents a refinement-DAG calculus that structures software development as an acyclic graph of verified behavior inclusions. One relation — behavior inclusion under a typed edge abstraction map — serves for intent satisfaction, child contract refinement, connector decomposition, and code realization. Acyclic support links permit topological support evaluation. The acyclic Refinement DAG organizes connector substitution, closure and cut inspection, and version evolution with proof reuse at unchanged scoped obligations.
+        Agent-authored software requires a principled boundary between the behavioral guarantees it must preserve and the internal implementation details an automated agent is permitted to change. We present a development calculus in which local component machines, parent-owned contracts, executable leaves, and architectural connectors are formally related through finite visible-trace inclusion under three operational disciplines: Restricted Leaf Normal Form (RLNF) handlers, letter-or-erasure homomorphic observations with deterministic protocol monitors, and single-owner stateful runtime instances.
       </p>
       <div class="actions">
         <a class="btn primary" href="/jirl-formal-paper/">📖 Read &amp; Annotate Paper</a>
         <a class="btn" href="/jirl-formal-paper.pdf" target="_blank" rel="noopener">⬇ Download PDF</a>
-        <a class="btn" href="https://github.com/xywsxp/xywsxp.github.io/blob/main/jirl/JirlCalculus.lean" target="_blank" rel="noopener">🔬 Lean 4 Mechanization (1,192 lines)</a>
         <a class="btn" href="https://github.com/xywsxp/xywsxp.github.io/tree/main/jirl" target="_blank" rel="noopener">💻 Source &amp; Models</a>
         <a class="btn" href="https://github.com/xywsxp/xywsxp.github.io/issues" target="_blank" rel="noopener">💬 Shared Annotations &amp; Issues</a>
       </div>
       <div class="toc-preview">
-        <a href="/jirl-formal-paper/#1-introduction">§1. Introduction &amp; The Refinement-DAG Thesis</a>
+        <a href="/jirl-formal-paper/#1-introduction">§1. Introduction &amp; Three Operational Disciplines</a>
         <a href="/jirl-formal-paper/#2-the-refinement-algebra">§2. The Refinement Algebra</a>
         <a href="/jirl-formal-paper/#3-the-refinement-dag-and-soundness">§3. The Refinement DAG, Cuts &amp; Soundness</a>
-        <a href="/jirl-formal-paper/#4-verification-obligations">§4. Verification Obligations</a>
-        <a href="/jirl-formal-paper/#5-decomposition-and-interaction">§5. Decomposition, Interaction &amp; Recipes</a>
-        <a href="/jirl-formal-paper/#6-the-development-protocol">§6. The Five-Gate Agent Protocol</a>
-        <a href="/jirl-formal-paper/#7-versioned-evolution-and-top-down-projection">§7. Versioned Evolution &amp; Frame Cutoff</a>
-        <a href="/jirl-formal-paper/#8-end-to-end-example-durable-acknowledgement">§8. Example: Durable Acknowledgement</a>
-        <a href="/jirl-formal-paper/#9-mechanization-target">§9. Checked Lean 4 Mechanization Target</a>
-        <a href="/jirl-formal-paper/#10-related-work">§10–12. Related Work, Open Problems &amp; Conclusion</a>
+        <a href="/jirl-formal-paper/#4-verification-obligations-and-restricted-leaf-realization">§4. Obligations &amp; Restricted Leaf Realization</a>
+        <a href="/jirl-formal-paper/#5-decomposition-modularity-and-interaction">§5. Decomposition, Modularity &amp; Interaction</a>
+        <a href="/jirl-formal-paper/#6-the-development-protocol">§6. The Five-Gate Development Protocol</a>
+        <a href="/jirl-formal-paper/#7-versioned-evolution-and-incremental-frame-cutoff">§7. Versioned Evolution &amp; Frame Cutoff</a>
+        <a href="/jirl-formal-paper/#8-end-to-end-worked-example-durable-acknowledgement">§8. Worked Example: Durable Acknowledgement</a>
+        <a href="/jirl-formal-paper/#9-related-work">§9–11. Related Work, Limitations &amp; Conclusion</a>
+        <a href="/jirl-formal-paper/#appendix-a-proof-details">Appendices A–B. Expanded Proofs &amp; Notation</a>
       </div>
     </article>
   </div>
